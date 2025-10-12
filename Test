@@ -1,7 +1,37 @@
---- Load Mercury UI Library
+-- Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeity/mercury-lib/master/src.lua"))()
 
--- Create the main GUI
+-- Services
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- === Save / Load Settings ===
+local settingsFolder = player:FindFirstChild("MercurySettings") or Instance.new("Folder")
+settingsFolder.Name = "MercurySettings"
+settingsFolder.Parent = player
+
+-- Save toggle state function
+local function saveToggleState(name, state)
+    local toggleValue = settingsFolder:FindFirstChild(name)
+    if not toggleValue then
+        toggleValue = Instance.new("BoolValue")
+        toggleValue.Name = name
+        toggleValue.Parent = settingsFolder
+    end
+    toggleValue.Value = state
+end
+
+-- Load toggle state function
+local function loadToggleState(name)
+    local toggleValue = settingsFolder:FindFirstChild(name)
+    if toggleValue then
+        return toggleValue.Value
+    else
+        return false
+    end
+end
+
+-- Create GUI
 local GUI = Mercury:Create{
     Name = "Mainland Attach GUI",
     Theme = Mercury.Themes.Dark,
@@ -29,20 +59,20 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
--- Toggle: Attach to Body
+-- Toggle: Attach to Body with saved settings
 local attached = false
-local weld -- reference to current weld
+local weld
 
 MainTab:Toggle{
     Name = "Attach to Body",
-    StartingState = false,
+    StartingState = loadToggleState("AttachToBody"), -- Load saved state
     Description = "Attach to one Body at a time until it disappears",
     Callback = function(state)
         attached = state
+        saveToggleState("AttachToBody", state) -- Save toggle state
 
         if attached then
             spawn(function()
-                local player = game.Players.LocalPlayer
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
 
@@ -59,7 +89,6 @@ MainTab:Toggle{
                             weld.Part1 = body
                             weld.Parent = hrp
 
-                            -- Wait until Body is gone or toggle turned off
                             repeat
                                 wait(0.3)
                             until not body or not body.Parent or not attached
@@ -74,7 +103,6 @@ MainTab:Toggle{
                 end
             end)
         else
-            -- Remove any active weld if toggled off
             if weld then
                 weld:Destroy()
                 weld = nil
