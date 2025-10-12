@@ -1,72 +1,20 @@
---- Full All-Islands Teleport GUI (Kavo) - Complete Script
--- Features: Main, Travel, Train, Auto, Shop, Lunar/Volcano
--- Safe one-by-one Body teleport; waits until Body removed before moving on.
+-- Load Mercury UI Library
+local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeity/mercury-lib/master/src.lua"))()
 
--- === GUI Library Setup ===
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
+-- Create the main GUI
+local GUI = Mercury:Create{
+    Name = "Mainland Teleport GUI",
+    Theme = Mercury.Themes.Dark,
+    Link = "https://github.com/deeeity/mercury-lib"
+}
 
--- === Tabs & Sections ===
-local TeleportTab = Window:NewTab("Main")
-local TeleportSection = TeleportTab:NewSection("Teleport Controls")
+-- Create a tab
+local MainTab = GUI:Tab{
+    Name = "Main",
+    Icon = "rbxassetid://8569322835"
+}
 
-local TravelTab = Window:NewTab("Island Travel")
-local TravelSection = TravelTab:NewSection("Quick TP Buttons")
-
-local TrainTab = Window:NewTab("Train")
-local TrainSection = TrainTab:NewSection("Training Features")
-
-local AutoTab = Window:NewTab("Auto")
-local AutoSection = AutoTab:NewSection("Automation")
-
-local ShopTab = Window:NewTab("Shop")
-local ShopSection = ShopTab:NewSection("Shop Items")
-
-local LunarVolcanoTab = Window:NewTab("Lunar/Volcano")
-local LunarVolcanoSection = LunarVolcanoTab:NewSection("Special Teleports & Lava")
-
-local MiscTab = Window:NewTab("Misc")
-local MiscSection = MiscTab:NewSection("Utilities")
-
--- Toggle GUI key
-Library.ToggleKeybind = Enum.KeyCode.RightControl
-
--- === Initialization / references ===
-local Players = game:GetService("Players")
-local RepStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-local islandsFolder = workspace:WaitForChild("Islands", 10)
-if not islandsFolder then
-    warn("[All Islands Teleport] 'Islands' folder not found - script will still run but island features may be limited.")
-end
-local explorerFolder = workspace:FindFirstChild("Explorer")
-
--- reconnect char/hrp on respawn
-player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    hrp = character:WaitForChild("HumanoidRootPart")
-end)
-
--- keep explorerFolder reference refreshed
-task.spawn(function()
-    while true do
-        explorerFolder = workspace:FindFirstChild("Explorer")
-        task.wait(5)
-    end
-end)
-
--- === Timing constants (easy to tune) ===
-local SHORT_WAIT = 0.06
-local BODY_WAIT_POLL = 0.2
-local NO_BODY_RETRY = 15
-local MAIN_LOOP_WAIT = 1.0
-local LAVA_CLEAR_INTERVAL = 200
-
--- === Exclusions (unwanted models) ===
+-- === Universal Exclusions ===
 local exclusions = {
     ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
     ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
@@ -82,402 +30,41 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
--- === Island list (for toggles/buttons) ===
-local islandConfigs = {
-    ["Mainland"] = {},
-    ["Forest Island"] = {},
-    ["Mountain Island"] = {},
-    ["Lunar Islands"] = {},
-    ["Royal Island"] = {},
-    ["Blizzard Island"] = {},
-    ["Jungle Island"] = {},
-    ["Volcano Island"] = {},
-    ["Desert Island"] = {},
-    ["Glacier Island"] = {},
-    ["The Magical Forest"] = {},
-}
+-- Toggle teleport to "Body" parts, respecting exclusions
+local teleporting = false
 
--- === Positions for special islands (Lunar / Volcano, etc.) ===
-local positionsByIsland = {
-    ["Forest Island"] = {
-        Vector3.new(-7839, 96, 4180),
-        Vector3.new(-7945, 91, 3557),
-        Vector3.new(-7878, 135, 2901),
-    },
-    ["Mountain Island"] = {
-        Vector3.new(-6715, 276, 10),
-        Vector3.new(-6102, 349, -242),
-        Vector3.new(-6962, 304, -778),
-    },
-    ["Lunar Islands"] = {
-        Vector3.new(-3097.42, 17.63, -3681.29),
-        Vector3.new(-2759.49, 6.74, -2589.20),
-        Vector3.new(-2207.14, 139.06, -1223.94),
-        Vector3.new(-3266.90, 15.43, -1436.56),
-        Vector3.new(-3357.76, 24.34, -2428.62),
-    },
-    ["Royal Island"] = {
-        Vector3.new(253.7, 94, -5399),
-        Vector3.new(-372, 156, -6136),
-        Vector3.new(617, 6.8, -6002),
-    },
-    ["Blizzard Island"] = {
-        Vector3.new(-428, 138, -3859),
-        Vector3.new(-937, 14, -3897),
-        Vector3.new(244, 15, -3563),
-    },
-    ["Jungle Island"] = {
-        Vector3.new(3396, 15, 1080),
-        Vector3.new(3616, 65, 2149),
-        Vector3.new(3763, 16, 3143),
-    },
-    ["Volcano Island"] = {
-        Vector3.new(2964.74, 108.94, -7078.36),
-        Vector3.new(4134.52, 27.04, -6894.68),
-        Vector3.new(4757.52, 26.13, -7939.00),
-        Vector3.new(3487.48, 20.99, -8586.85),
-    },
-    ["Desert Island"] = {
-        Vector3.new(1050, 15, 4095),
-        Vector3.new(156, 31, 4065),
-        Vector3.new(-517, 38, 4221),
-    },
-    ["Glacier Island"] = {
-        Vector3.new(2718, 115, -74),
-        Vector3.new(2438, 196, -763),
-        Vector3.new(3102, 147, -911),
-        Vector3.new(3125, 82, -74),
-    },
-}
+MainTab:Toggle{
+    Name = "Auto Teleport to Body",
+    StartingState = false,
+    Description = "Teleports to one 'Body' at a time until it disappears, skipping exclusions",
+    Callback = function(state)
+        teleporting = state
+        if teleporting then
+            spawn(function()
+                local player = game.Players.LocalPlayer
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 
--- === Persistence (simple) ===
--- Stores toggles in getgenv() so re-executing script keeps previous states.
-getgenv().__AIT_savedToggles = getgenv().__AIT_savedToggles or {}
-local savedToggles = getgenv().__AIT_savedToggles
-
--- === Utility / safe functions ===
-local function safeTeleportToVector3(pos)
-    if not (hrp and hrp.Parent) then return end
-    pcall(function()
-        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-    end)
-end
-
-local function safeTeleportToPart(part)
-    if not (hrp and hrp.Parent and part and part.Parent) then return end
-    pcall(function()
-        hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 5, 0))
-    end)
-end
-
--- Find all Body parts (returns array). This is non-destructive and checks descendants.
-local function findBodiesInWorkspace()
-    local bodies = {}
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name == "Body" then
-            table.insert(bodies, obj)
-        end
-    end
-    return bodies
-end
-
--- More-targeted: find Bodies for a named island (searches workspace direct UUID models, Islands folder, Explorer folder)
-local function getAllBodiesForIsland(islandName)
-    local bodies = {}
-
-    -- UUID models at workspace root
-    for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
-            local body = model:FindFirstChild("Body")
-            if body and body:IsA("BasePart") then
-                table.insert(bodies, body)
-            end
-        end
-    end
-
-    -- Islands folder
-    if islandsFolder then
-        local folder = islandsFolder:FindFirstChild(islandName)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
-                if not exclusions[model.Name] then
-                    local body = model:FindFirstChild("Body")
-                    if body and body:IsA("BasePart") then
-                        table.insert(bodies, body)
-                    end
-                end
-            end
-        end
-    end
-
-    -- Explorer folder
-    if explorerFolder then
-        local folder = explorerFolder:FindFirstChild(islandName)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
-                if not exclusions[model.Name] then
-                    local body = model:FindFirstChild("Body")
-                    if body and body:IsA("BasePart") then
-                        table.insert(bodies, body)
-                    end
-                end
-            end
-        end
-    end
-
-    return bodies
-end
-
--- === Status Label ===
-local statusLabel = TeleportSection:NewLabel("Status: Idle")
-
--- === MAIN: Teleport Toggles (single optimized loop) ===
-local teleportToggles = {}
-for islandName in pairs(islandConfigs) do
-    teleportToggles[islandName] = savedToggles[islandName] or false
-    -- create toggle in GUI
-    TeleportSection:NewToggle("Teleport " .. islandName, "Teleport to bodies on " .. islandName, function(state)
-        teleportToggles[islandName] = state
-        savedToggles[islandName] = state
-    end)
-end
-
--- Single background loop to service all teleport toggles sequentially.
-task.spawn(function()
-    while true do
-        local anyActive = false
-        for islandName, enabled in pairs(teleportToggles) do
-            if enabled then
-                anyActive = true
-                statusLabel:UpdateLabel("Teleporting to " .. islandName)
-                local bodies = getAllBodiesForIsland(islandName)
-                -- process bodies one-by-one, waiting until each disappears
-                if #bodies > 0 then
-                    for _, body in ipairs(bodies) do
-                        if not teleportToggles[islandName] then break end
-                        if body and body.Parent then
-                            safeTeleportToPart(body)
-                            -- wait until this body is destroyed/removed or toggle is turned off
-                            repeat
-                                task.wait(BODY_WAIT_POLL)
-                            until (not body.Parent) or (not teleportToggles[islandName])
-                        end
-                        task.wait(SHORT_WAIT)
-                    end
-                else
-                    -- nothing found for this island; small wait before continuing to next island
-                    task.wait(0.5)
-                end
-            end
-        end
-
-        if not anyActive then
-            statusLabel:UpdateLabel("Status: Idle")
-        end
-        task.wait(MAIN_LOOP_WAIT)
-    end
-end)
-
--- === TRAVEL Buttons (calls remote safely) ===
--- Replace remote lookup logic to be safer: wait for Communication / Functions then find a remote function
-local function safeFireTravel(islandName)
-    local success, comm = pcall(function()
-        return RepStorage:WaitForChild("Communication", 5)
-    end)
-    if not success or not comm then return end
-    local funcs = comm:FindFirstChild("Functions")
-    if not funcs then return end
-    -- try to find a RemoteEvent/RemoteFunction in Functions; adapt if your game's index differs
-    local fn = funcs:GetChildren()[2] or funcs:FindFirstChildWhichIsA("RemoteEvent") or funcs:FindFirstChildWhichIsA("RemoteFunction")
-    if fn and typeof(fn.FireServer) == "function" then
-        local args = {"\1", "Travel", islandName, 1}
-        pcall(function() fn:FireServer(unpack(args)) end)
-    elseif fn and typeof(fn.InvokeServer) == "function" then
-        local args = {"\1", "Travel", islandName, 1}
-        pcall(function() fn:InvokeServer(unpack(args)) end)
-    end
-end
-
-for islandName in pairs(islandConfigs) do
-    TravelSection:NewButton("Travel to " .. islandName, "Use teleport remote", function()
-        safeFireTravel(islandName)
-    end)
-end
-
--- === LUNAR / VOLCANO Explorer ===
-local islandExplores = {}
-local function exploreIslandPositions(islandName, positions, toggleTable)
-    task.spawn(function()
-        while true do
-            if toggleTable.value then
-                -- ensure island folder exists (either Islands or Explorer)
-                local folder = (islandsFolder and islandsFolder:FindFirstChild(islandName)) or (explorerFolder and explorerFolder:FindFirstChild(islandName))
-                if not folder then
-                    task.wait(2)
-                    continue
-                end
-
-                for _, pos in ipairs(positions) do
-                    if not toggleTable.value then break end
-
-                    -- check if any bodies for this island exist
-                    local bodies = getAllBodiesForIsland(islandName)
-                    if #bodies > 0 then
-                        -- teleport to each body one-by-one, waiting for it to disappear
-                        for _, body in ipairs(bodies) do
-                            if not toggleTable.value then break end
-                            if body and body.Parent then
-                                safeTeleportToPart(body)
-                                repeat task.wait(BODY_WAIT_POLL) until (not body.Parent) or (not toggleTable.value)
+                while teleporting and hrp do
+                    local mainland = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Mainland")
+                    if mainland then
+                        for _, model in pairs(mainland:GetChildren()) do
+                            -- Skip excluded models
+                            if not exclusions[model.Name] then
+                                local body = model:FindFirstChild("Body")
+                                if body then
+                                    -- Keep teleporting to this Body until it disappears
+                                    repeat
+                                        if not teleporting then break end
+                                        hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,3,0))
+                                        wait(0.3)
+                                    until not body or not body.Parent
+                                end
                             end
-                            task.wait(SHORT_WAIT)
                         end
-                    else
-                        -- no bodies at this position: teleport to the checkpoint and wait 15s
-                        safeTeleportToVector3(pos)
-                        task.wait(NO_BODY_RETRY)
                     end
+                    wait(0.5)
                 end
-            else
-                task.wait(2.5)
-            end
+            end)
         end
-    end)
-end
-
--- Create toggles for positionsByIsland
-for islandName, positions in pairs(positionsByIsland) do
-    islandExplores[islandName] = { value = savedToggles["explore:" .. islandName] or false }
-    LunarVolcanoSection:NewToggle(islandName .. " Explore", "Teleport to UUID.Body parts at positions for " .. islandName, function(state)
-        islandExplores[islandName].value = state
-        savedToggles["explore:" .. islandName] = state
-    end)
-    exploreIslandPositions(islandName, positions, islandExplores[islandName])
-end
-
--- === Volcano Lava Removal (safe clear) ===
-local removeLavaEnabled = savedToggles["removeLava"] or false
-LunarVolcanoSection:NewToggle("Remove Volcano Lava", "Deletes children of LavaParts folder periodically", function(state)
-    removeLavaEnabled = state
-    savedToggles["removeLava"] = state
-    if state then
-        task.spawn(function()
-            while removeLavaEnabled do
-                local lavaFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Volcano Island") and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
-                if lavaFolder then
-                    for _, v in ipairs(lavaFolder:GetChildren()) do
-                        pcall(function() v:Destroy() end)
-                    end
-                end
-                task.wait(LAVA_CLEAR_INTERVAL)
-            end
-        end)
     end
-end)
-
--- start lava removal immediately if persisted true
-if removeLavaEnabled then
-    -- spawn a cleaner loop (already created above by toggle callback, but ensure a loop exists)
-    task.spawn(function()
-        while removeLavaEnabled do
-            local lavaFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Volcano Island") and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
-            if lavaFolder then
-                for _, v in ipairs(lavaFolder:GetChildren()) do
-                    pcall(function() v:Destroy() end)
-                end
-            end
-            task.wait(LAVA_CLEAR_INTERVAL)
-        end
-    end)
-end
-
--- === AUTO Tab: Auto-sell / Auto-catch example toggles ===
-local autoSellEnabled = savedToggles["autoSell"] or false
-local autoCatchEnabled = savedToggles["autoCatch"] or false
-
-AutoSection:NewToggle("Auto-Sell", "Automatically fire sell remote when possible", function(state)
-    autoSellEnabled = state
-    savedToggles["autoSell"] = state
-end)
-
-AutoSection:NewToggle("Auto-Catch", "Automatically attempt to catch items", function(state)
-    autoCatchEnabled = state
-    savedToggles["autoCatch"] = state
-end)
-
--- Example safe loops for auto actions (these call placeholder remotes - change remote names/args as needed)
-task.spawn(function()
-    while true do
-        if autoSellEnabled then
-            -- Example: try to call a sell remote if it exists
-            local success, comm = pcall(function() return RepStorage:FindFirstChild("Communication") end)
-            if success and comm then
-                local funcs = comm:FindFirstChild("Functions")
-                if funcs and funcs:GetChildren()[3] and typeof(funcs:GetChildren()[3].FireServer) == "function" then
-                    pcall(function() funcs:GetChildren()[3]:FireServer("SellAll") end)
-                end
-            end
-        end
-        task.wait(3)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if autoCatchEnabled then
-            -- Example auto-catch placeholder (customize for your game's remote)
-            local success, comm = pcall(function() return RepStorage:FindFirstChild("Communication") end)
-            if success and comm then
-                local funcs = comm:FindFirstChild("Functions")
-                if funcs and funcs:GetChildren()[4] and typeof(funcs:GetChildren()[4].FireServer) == "function" then
-                    pcall(function() funcs:GetChildren()[4]:FireServer("Catch") end)
-                end
-            end
-        end
-        task.wait(2)
-    end
-end)
-
--- === TRAIN & SHOP tabs: placeholders for UI and sample toggles/buttons ===
-TrainSection:NewLabel("Training features go here")
-TrainSection:NewToggle("Auto-Train (placeholder)", "Auto train while enabled", function(state)
-    -- Implement training remote logic here
-end)
-
-ShopSection:NewLabel("Shop items / buys go here")
-ShopSection:NewButton("Buy Fast Boots (placeholder)", "Calls shop remote", function()
-    -- Implement shop remote firing here
-end)
-
--- === STOP ALL SCRIPTS button & Save state button ===
-MiscSection:NewButton("Stop All Scripts", "Turn off toggles and stop loops", function()
-    -- turn off all toggles
-    for k in pairs(teleportToggles) do teleportToggles[k] = false end
-    for k, t in pairs(islandExplores) do t.value = false end
-    autoSellEnabled = false
-    autoCatchEnabled = false
-    removeLavaEnabled = false
-    statusLabel:UpdateLabel("Status: Stopped")
-    -- attempt to unload/close GUI (Kavo has no built-in unload in all forks; using hide)
-    pcall(function() Library:Toggle() end)
-end)
-
-MiscSection:NewButton("Save Toggle States Now", "Saves current toggle states to getgenv()", function()
-    getgenv().__AIT_savedToggles = savedToggles
-    -- quick visual feedback
-    statusLabel:UpdateLabel("Status: Saved Toggles")
-    task.delay(1.5, function() statusLabel:UpdateLabel("Status: Idle") end)
-end)
-
--- persist automatically on script unload (best-effort)
-task.spawn(function()
-    while true do
-        getgenv().__AIT_savedToggles = savedToggles
-        task.wait(10)
-    end
-end)
-
--- === Final startup label ===
-statusLabel:UpdateLabel("Status: Ready")
-
--- End of script
+}
