@@ -1130,11 +1130,17 @@ local ExtraTab = GUI:Tab{
     Icon = "rbxassetid://8569322835"
 }
 
--- Get Travel Remote (same one from Travel tab)
+-- === Travel Remote ===
 local travelRemote = game:GetService("ReplicatedStorage")
-    :WaitForChild("Communication")
-    :WaitForChild("Events")
-    :FindFirstChild("Travel") or game:GetService("ReplicatedStorage").Communication.Events:GetChildren()[12]
+    :WaitForChild("Communication", 9e9)
+    :WaitForChild("Functions", 9e9)
+    :GetChildren()[2]
+
+local function travelToIsland(islandName)
+    local args = {"\1", "Travel", islandName, 1}
+    travelRemote:FireServer(unpack(args))
+    task.wait(5) -- give time to load the island
+end
 
 -- === Cycle Toggle 1: Glacier → Desert → Royal ===
 local cycleIslandsEnabled1 = false
@@ -1149,19 +1155,12 @@ ExtraTab:Toggle{
                 local islandSequence = {"Glacier Island", "Desert Island", "Royal Island"}
                 local islandIndex = 1
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-
                 while cycleIslandsEnabled1 do
                     local currentIsland = islandSequence[islandIndex]
-                    print("Traveling to:", currentIsland)
 
-                    -- Travel to island using remote
-                    pcall(function()
-                        travelRemote:FireServer("Travel", currentIsland)
-                    end)
+                    -- Travel using the remote
+                    travelToIsland(currentIsland)
 
-                    task.wait(5) -- small delay for island to load
-
-                    -- Run body teleport loop for 205 seconds
                     local startTime = os.clock()
                     while os.clock() - startTime < 205 and cycleIslandsEnabled1 do
                         hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -1179,23 +1178,17 @@ ExtraTab:Toggle{
                             for _, pos in ipairs(posList) do
                                 if not cycleIslandsEnabled1 then break end
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-
-                                -- Break long waits to check toggle
-                                local waitTime = 12
-                                local interval = 0.1
-                                for t = 0, waitTime, interval do
+                                for _ = 1, 120 do
                                     if not cycleIslandsEnabled1 then break end
-                                    task.wait(interval)
+                                    task.wait(0.1)
                                 end
-
-                                if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled1 then break end
                             end
                         end
 
                         task.wait(0.3)
                     end
 
-                    -- Move to next island
+                    -- Next island
                     islandIndex = islandIndex + 1
                     if islandIndex > #islandSequence then
                         islandIndex = 1
@@ -1219,19 +1212,12 @@ ExtraTab:Toggle{
                 local islandSequence = {"Lunar Islands", "Volcano Island", "Jungle Island"}
                 local islandIndex = 1
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-
                 while cycleIslandsEnabled2 do
                     local currentIsland = islandSequence[islandIndex]
-                    print("Traveling to:", currentIsland)
 
-                    -- Travel using remote
-                    pcall(function()
-                        travelRemote:FireServer("Travel", currentIsland)
-                    end)
+                    -- Travel using the remote
+                    travelToIsland(currentIsland)
 
-                    task.wait(5) -- let island load
-
-                    -- Run body teleport loop for 205 seconds
                     local startTime = os.clock()
                     while os.clock() - startTime < 205 and cycleIslandsEnabled2 do
                         hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -1249,21 +1235,17 @@ ExtraTab:Toggle{
                             for _, pos in ipairs(posList) do
                                 if not cycleIslandsEnabled2 then break end
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-
-                                local waitTime = 12
-                                local interval = 0.1
-                                for t = 0, waitTime, interval do
+                                for _ = 1, 120 do
                                     if not cycleIslandsEnabled2 then break end
-                                    task.wait(interval)
+                                    task.wait(0.1)
                                 end
-
-                                if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled2 then break end
                             end
                         end
 
                         task.wait(0.3)
                     end
 
+                    -- Next island
                     islandIndex = islandIndex + 1
                     if islandIndex > #islandSequence then
                         islandIndex = 1
@@ -1274,7 +1256,7 @@ ExtraTab:Toggle{
     end
 }
 
--- === Remove Lava ===
+-- === Remove Lava Button ===
 ExtraTab:Button{
     Name = "Remove Volcano Lava",
     Callback = function()
@@ -1283,9 +1265,6 @@ ExtraTab:Button{
             and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
         if lavaFolder then
             lavaFolder:Destroy()
-            print("Removed Volcano Lava.")
-        else
-            warn("Lava folder not found.")
         end
     end
 }
