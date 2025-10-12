@@ -1,35 +1,7 @@
---- Load Mercury UI Library
+-- Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeeity/mercury-lib/master/src.lua"))()
 
--- Services
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- === Save / Load Settings ===
-local settingsFolder = player:FindFirstChild("MercurySettings") or Instance.new("Folder")
-settingsFolder.Name = "MercurySettings"
-settingsFolder.Parent = player
-
--- Save toggle state function
-local function saveToggleState(name, state)
-    local toggleValue = settingsFolder:FindFirstChild(name)
-    if not toggleValue then
-        toggleValue = Instance.new("BoolValue")
-        toggleValue.Name = name
-        toggleValue.Parent = settingsFolder
-    end
-    toggleValue.Value = state
-end
-
--- Load toggle state function
-local function loadToggleState(name)
-    local toggleValue = settingsFolder:FindFirstChild(name)
-    if toggleValue then
-        return toggleValue.Value
-    else
-        return false
-    end
-end
+local UserInputService = game:GetService("UserInputService")
 
 -- Create GUI
 local GUI = Mercury:Create{
@@ -59,54 +31,64 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
--- Toggle: Attach to Body with saved settings
+-- Toggle: Attach to Body
 local attached = false
 local weld
 
 MainTab:Toggle{
     Name = "Attach to Body",
-    StartingState = loadToggleState("AttachToBody"), -- Load saved state
+    StartingState = false,
     Description = "Attach to one Body at a time until it disappears",
     Callback = function(state)
         attached = state
-        saveToggleState("AttachToBody", state) -- Save toggle state
+
+        if not attached and weld then
+            weld:Destroy()
+            weld = nil
+        end
 
         if attached then
             spawn(function()
+                local player = game.Players.LocalPlayer
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
 
                 local mainland = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Mainland")
                 if not mainland then return end
 
-                for _, model in pairs(mainland:GetChildren()) do
-                    if attached and not exclusions[model.Name] then
-                        local body = model:FindFirstChild("Body")
-                        if body and body.Parent then
-                            -- Create Weld
-                            weld = Instance.new("WeldConstraint")
-                            weld.Part0 = hrp
-                            weld.Part1 = body
-                            weld.Parent = hrp
+                while attached do
+                    for _, model in pairs(mainland:GetChildren()) do
+                        if attached and not exclusions[model.Name] then
+                            local body = model:FindFirstChild("Body")
+                            if body and body.Parent then
+                                weld = Instance.new("WeldConstraint")
+                                weld.Part0 = hrp
+                                weld.Part1 = body
+                                weld.Parent = hrp
 
-                            repeat
-                                wait(0.3)
-                            until not body or not body.Parent or not attached
+                                repeat
+                                    wait(0.3)
+                                until not body or not body.Parent or not attached
 
-                            -- Remove Weld
-                            if weld then
-                                weld:Destroy()
-                                weld = nil
+                                if weld then
+                                    weld:Destroy()
+                                    weld = nil
+                                end
                             end
                         end
                     end
+                    wait(0.5)
                 end
             end)
-        else
-            if weld then
-                weld:Destroy()
-                weld = nil
-            end
         end
     end
 }
+
+-- === GUI Show/Hide with G key ===
+GUI.Visible = true
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G then
+        GUI.Visible = not GUI.Visible
+    end
+end)
