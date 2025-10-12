@@ -3,12 +3,11 @@ local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/deeei
 
 -- Create the main GUI
 local GUI = Mercury:Create{
-    Name = "Mainland Teleport GUI",
+    Name = "Mainland Attach GUI",
     Theme = Mercury.Themes.Dark,
     Link = "https://github.com/deeeity/mercury-lib"
 }
 
--- Create a tab
 local MainTab = GUI:Tab{
     Name = "Main",
     Icon = "rbxassetid://8569322835"
@@ -30,41 +29,56 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
--- Toggle teleport to "Body" parts, respecting exclusions
-local teleporting = false
+-- Toggle: Attach to Body
+local attached = false
+local weld -- reference to current weld
 
 MainTab:Toggle{
-    Name = "Auto Teleport to Body",
+    Name = "Attach to Body",
     StartingState = false,
-    Description = "Teleports to one 'Body' at a time until it disappears, skipping exclusions",
+    Description = "Attach to one Body at a time until it disappears",
     Callback = function(state)
-        teleporting = state
-        if teleporting then
+        attached = state
+
+        if attached then
             spawn(function()
                 local player = game.Players.LocalPlayer
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
 
-                while teleporting and hrp do
-                    local mainland = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Mainland")
-                    if mainland then
-                        for _, model in pairs(mainland:GetChildren()) do
-                            -- Skip excluded models
-                            if not exclusions[model.Name] then
-                                local body = model:FindFirstChild("Body")
-                                if body then
-                                    -- Keep teleporting to this Body until it disappears
-                                    repeat
-                                        if not teleporting then break end
-                                        hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,3,0))
-                                        wait(0.3)
-                                    until not body or not body.Parent
-                                end
+                local mainland = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild("Mainland")
+                if not mainland then return end
+
+                for _, model in pairs(mainland:GetChildren()) do
+                    if attached and not exclusions[model.Name] then
+                        local body = model:FindFirstChild("Body")
+                        if body and body.Parent then
+                            -- Create Weld
+                            weld = Instance.new("WeldConstraint")
+                            weld.Part0 = hrp
+                            weld.Part1 = body
+                            weld.Parent = hrp
+
+                            -- Wait until Body is gone or toggle turned off
+                            repeat
+                                wait(0.3)
+                            until not body or not body.Parent or not attached
+
+                            -- Remove Weld
+                            if weld then
+                                weld:Destroy()
+                                weld = nil
                             end
                         end
                     end
-                    wait(0.5)
                 end
             end)
+        else
+            -- Remove any active weld if toggled off
+            if weld then
+                weld:Destroy()
+                weld = nil
+            end
         end
     end
 }
