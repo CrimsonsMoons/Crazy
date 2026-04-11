@@ -1,0 +1,2822 @@
+
+
+--// StarterPlayerScripts > LocalScript
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- >>> CHANGE THIS TO YOUR NPC FOLDER <<<
+local FOLDER_PATH = workspace:WaitForChild("NPCs")
+
+-- Combat remote (Toggle Attack)
+local CombatRemote = ReplicatedStorage
+	:WaitForChild("CombatSystem", 9e9)
+	:WaitForChild("Remotes", 9e9)
+	:WaitForChild("RequestHit", 9e9)
+
+-- Quest remote
+local QuestRemote = ReplicatedStorage
+	:WaitForChild("RemoteEvents", 9e9)
+	:WaitForChild("QuestAccept", 9e9)
+
+-- Ability remote (Skills tab)
+local AbilityRemote = ReplicatedStorage
+	:WaitForChild("AbilitySystem", 9e9)
+	:WaitForChild("Remotes", 9e9)
+	:WaitForChild("RequestAbility", 9e9)
+
+-- Haki remote
+local HakiRemote = ReplicatedStorage
+	:WaitForChild("RemoteEvents", 9e9)
+	:WaitForChild("HakiRemote", 9e9)
+
+-- Quest list (UI text only; Arg is what remote uses)
+local quests = {
+	{ DisplayName = "Theivs (Lv. 1–99)",				       Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		       Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			       Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		       Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	       Arg = "QuestNPC5"  },
+	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)",   Arg = "QuestNPC6"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	       Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",   Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",    Arg = "QuestNPC9"  },
+	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",  Arg = "QuestNPC10" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",		       Arg = "QuestNPC11" },
+	{ DisplayName = "Curses (Lv. 7000–8000)", Arg = "QuestNPC13" },
+	{ DisplayName = "Slimes (Lv. 8000–9000)", Arg = "QuestNPC14" },
+	{ DisplayName = "Academy Teachers (Lv. 9000–10000)", Arg = "QuestNPC15" },
+	{ DisplayName = "Swordsmen (Lv. 10000–10750)", Arg = "QuestNPC16" },
+	{ DisplayName = "Arena Fighters (Lv. 12000–99999)", Arg = "QuestNPC19" },
+	
+}
+
+-- Auto-level config: level ranges -> quest index + NPC group candidates
+local autoLevelConfig = {
+	{
+		minLevel = 0,
+		maxLevel = 99,
+		questIndex = 1,
+		npcGroupCandidates = {"Theiv", "Theivs", "Thief", "Thieves"},
+	},
+	{
+		minLevel = 100,
+		maxLevel = 249,
+		questIndex = 2,
+		npcGroupCandidates = {"TheivBoss", "ThiefBoss", "Theiv Boss", "Thief Boss"},
+	},
+	{
+		minLevel = 250,
+		maxLevel = 499,
+		questIndex = 3,
+		npcGroupCandidates = {"Monkey", "Monkeys"},
+	},
+	{
+		minLevel = 500,
+		maxLevel = 749,
+		questIndex = 4,
+		npcGroupCandidates = {"MonkeyBoss", "Monkey Boss"},
+	},
+	{
+		minLevel = 750,
+		maxLevel = 999,
+		questIndex = 5,
+		npcGroupCandidates = {"DesertBandit", "Desert Bandit", "DesertBandits", "Desert Bandits"},
+	},
+	{
+		minLevel = 1000,
+		maxLevel = 1499,
+		questIndex = 6,
+		npcGroupCandidates = {"DesertBanditBoss", "Desert Bandit Boss"},
+	},
+	{
+		minLevel = 1500,
+		maxLevel = 1999,
+		questIndex = 7,
+		npcGroupCandidates = {"FrostRouge", "Frost Rouge"},
+	},
+	{
+		minLevel = 2000,
+		maxLevel = 2999,
+		questIndex = 8,
+		npcGroupCandidates = {"WinterWarden", "Winter Warden", "WinterWardenBoss", "Winter Warden Boss"},
+	},
+	{
+		minLevel = 3000,
+		maxLevel = 3999,
+		questIndex = 9,
+		npcGroupCandidates = {"SorcererStudent", "Sorcerer Students", "Sorcerer Student"},
+	},
+	{
+		minLevel = 4000,
+		maxLevel = 5000,
+		questIndex = 10,
+		npcGroupCandidates = {"PandaSorcerer", "Panda Sorcerer", "PandaSorcererBoss", "Panda Sorcerer Boss"},
+	},
+	{
+		minLevel = 5001,
+		maxLevel = 6999,
+		questIndex = 11,
+		npcGroupCandidates = {"Hollow", "Hollows"},
+	},
+	{
+		minLevel = 7000,
+		maxLevel = 7999,
+		questIndex = 12,
+		npcGroupCandidates = {"Curse", "Curses"},
+	},
+	{
+		minLevel = 8000,
+		maxLevel = 8999,
+		questIndex = 13,
+		npcGroupCandidates = {"Slime", "Slimes"},
+	},
+	{
+		minLevel = 9000,
+		maxLevel = 9999,
+		questIndex = 14,
+		npcGroupCandidates = {"AcademyTeacher", "Academy Teachers", "Academy Teacher"},
+	},
+	{
+		minLevel = 10000,
+		maxLevel = 11999,
+		questIndex = 15,
+		npcGroupCandidates = {"Swordsman", "Swordsmen"},
+	},
+	{
+		minLevel = 12000,
+		maxLevel = 99999,
+		questIndex = 16,
+		npcGroupCandidates = {"ArenaFighter", "Arena Fighters", "Arena Fighter"},
+	},
+}
+
+-- Gems: bosses to watch for (multi-select)
+local gemBosses = {
+	{ DisplayName = "Yuji Boss",   GroupName = "YujiBoss"   },
+	{ DisplayName = "Gojo Boss",   GroupName = "GojoBoss"   },
+	{ DisplayName = "Jinwoo Boss", GroupName = "JinwooBoss" },
+	{ DisplayName = "Sukuna Boss", GroupName = "SukunaBoss" },
+	{ DisplayName = "Aizen Boss",  GroupName = "AizenBoss"  },
+	{ DisplayName = "Yamato Boss", GroupName = "YamatoBoss" },
+	{ DisplayName = "Strongest Shinobi Boss", GroupName = "StrongestShinobiBoss" },
+}
+
+local SAFETY_REFRESH_INTERVAL = 1.0
+local UI_REFRESH_INTERVAL = 0.6
+local POS_SMOOTH = 18
+local ROT_SMOOTH = 18
+
+---------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------
+
+local function baseName(name)
+	local stripped = name:gsub("%d+$", ""):gsub("%s+$", "")
+	if stripped == "" then
+		return name
+	end
+	return stripped
+end
+
+local function isSelectable(inst)
+	return inst:IsA("Model") or inst:IsA("BasePart")
+end
+
+local function getPivotCFrame(inst)
+	if inst:IsA("BasePart") then
+		return inst.CFrame
+	elseif inst:IsA("Model") then
+		local ok, cf = pcall(function()
+			return inst:GetPivot()
+		end)
+		if ok and cf then
+			return cf
+		end
+	end
+	return nil
+end
+
+local function dist(a, b)
+	local d = a - b
+	return (d.X * d.X + d.Y * d.Y + d.Z * d.Z) ^ 0.5
+end
+
+local function expAlpha(strength, dt)
+	return 1 - math.exp(-strength * dt)
+end
+
+local function safeUnitXZ(v)
+	local flat = Vector3.new(v.X, 0, v.Z)
+	local m = flat.Magnitude
+	if m < 1e-6 then
+		return Vector3.new(0, 0, -1)
+	end
+	return flat / m
+end
+
+local function getTargetHumanoid(inst)
+	if inst:IsA("Model") then
+		return inst:FindFirstChildOfClass("Humanoid")
+	end
+	local parent = inst.Parent
+	while parent do
+		if parent:IsA("Model") then
+			local h = parent:FindFirstChildOfClass("Humanoid")
+			if h then
+				return h
+			end
+		end
+		parent = parent.Parent
+	end
+	return nil
+end
+
+local function targetIsDead(inst)
+	local h = getTargetHumanoid(inst)
+	return (h ~= nil and h.Health <= 0)
+end
+
+---------------------------------------------------------------------
+-- HAKI HELPERS (for Gems tab)
+---------------------------------------------------------------------
+local function getMyRightArm()
+	-- Your character model is usually workspace[LocalPlayer.Name]
+	local char = workspace:FindFirstChild(LocalPlayer.Name)
+	if not char then return nil end
+
+	-- You said the path is workspace.Takus["Right Arm"]["Lightning Strike"],
+	-- so we prioritize "Right Arm" but also try other common names just in case.
+	local rightArm =
+		char:FindFirstChild("Right Arm")
+		or char:FindFirstChild("RightArm")
+		or char:FindFirstChild("RightLowerArm")
+		or char:FindFirstChild("RightHand")
+
+	return rightArm
+end
+
+local function hasHakiEffect()
+	local rightArm = getMyRightArm()
+	if not rightArm then return false end
+
+	-- This matches: workspace.Takus["Right Arm"]["Lightning Strike"]
+	return rightArm:FindFirstChild("Lightning Strike") ~= nil
+end
+
+local function ensureHakiOn()
+	-- If Lightning Strike is already on your right arm, do nothing.
+	if hasHakiEffect() then
+		return
+	end
+
+	-- Otherwise, fire the Haki toggle once.
+	-- This function will be called repeatedly in a loop,
+	-- so it will KEEP spamming until Lightning Strike shows up.
+	local args = { "Toggle" }
+	pcall(function()
+		HakiRemote:FireServer(unpack(args))
+	end)
+end
+
+---------------------------------------------------------------------
+-- Character
+---------------------------------------------------------------------
+
+local character
+local hrp
+local humanoid
+local prevAutoRotate
+
+local function stopNoclip() end
+local function removeStabilizers() end
+
+local function bindCharacter(c)
+	character = c
+	hrp = c:WaitForChild("HumanoidRootPart", 10)
+	humanoid = c:WaitForChild("Humanoid", 10)
+
+	if humanoid then
+		humanoid.Died:Connect(function()
+			stopNoclip()
+			removeStabilizers()
+		end)
+
+		if _G.__CFOLLOW_ENABLED_FLAG then
+			if prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			humanoid.AutoRotate = false
+		end
+	end
+end
+
+LocalPlayer.CharacterAdded:Connect(bindCharacter)
+if LocalPlayer.Character then
+	bindCharacter(LocalPlayer.Character)
+end
+
+---------------------------------------------------------------------
+-- Groups (NPC group selection)
+---------------------------------------------------------------------
+
+local groups = {}        -- [groupName] = {instances}
+local groupOrder = {}    -- sorted group names
+local selectedGroups = {}-- [groupName] = bool
+local currentTarget = nil
+
+local function rebuildGroups()
+	local newGroups = {}
+
+	for _, child in ipairs(FOLDER_PATH:GetChildren()) do
+		if child and child.Parent and isSelectable(child) then
+			local cf = getPivotCFrame(child)
+			if cf then
+				local b = baseName(child.Name)
+				if not newGroups[b] then
+					newGroups[b] = {}
+				end
+				table.insert(newGroups[b], child)
+			end
+		end
+	end
+
+	local nameSet = {}
+	for name in pairs(newGroups) do
+		nameSet[name] = true
+	end
+	for name, on in pairs(selectedGroups) do
+		if on then
+			nameSet[name] = true
+		end
+	end
+
+	local order = {}
+	for name in pairs(nameSet) do
+		table.insert(order, name)
+	end
+	table.sort(order, function(a, b)
+		return a:lower() < b:lower()
+	end)
+
+	groups = newGroups
+	groupOrder = order
+end
+
+FOLDER_PATH.ChildAdded:Connect(rebuildGroups)
+FOLDER_PATH.ChildRemoved:Connect(rebuildGroups)
+
+task.spawn(function()
+	while true do
+		rebuildGroups()
+		task.wait(SAFETY_REFRESH_INTERVAL)
+	end
+end)
+
+local function normalizeGroupName(name)
+	return tostring(name or ""):lower():gsub("%s+", ""):gsub("%d+$", "")
+end
+
+local function findBestGroupFromCandidates(candidates)
+	if not candidates then
+		return nil
+	end
+
+	for _, cand in ipairs(candidates) do
+		if groups[cand] and #groups[cand] > 0 then
+			return cand
+		end
+	end
+
+	for groupName, list in pairs(groups) do
+		if list and #list > 0 then
+			local normalizedGroup = normalizeGroupName(groupName)
+			for _, cand in ipairs(candidates) do
+				if normalizedGroup == normalizeGroupName(cand) then
+					return groupName
+				end
+			end
+		end
+	end
+
+	for groupName, list in pairs(groups) do
+		if list and #list > 0 then
+			local normalizedGroup = normalizeGroupName(groupName)
+			for _, cand in ipairs(candidates) do
+				local normalizedCand = normalizeGroupName(cand)
+				if normalizedGroup:find(normalizedCand, 1, true) or normalizedCand:find(normalizedGroup, 1, true) then
+					return groupName
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+local function pickClosestAcrossSelections()
+	if not (hrp and hrp.Parent) then
+		return nil
+	end
+	if next(selectedGroups) == nil then
+		return nil
+	end
+
+	local myPos = hrp.Position
+	local best = nil
+	local bestD = math.huge
+
+	for gName, on in pairs(selectedGroups) do
+		if on then
+			local list = groups[gName]
+			if list then
+				for i = #list, 1, -1 do
+					local inst = list[i]
+					if inst and inst.Parent and not targetIsDead(inst) then
+						local cf = getPivotCFrame(inst)
+						if cf then
+							local d = dist(myPos, cf.Position)
+							if d < bestD then
+								bestD = d
+								best = inst
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return best
+end
+
+---------------------------------------------------------------------
+-- Movement + positions
+---------------------------------------------------------------------
+
+local enabled = false
+_G.__CFOLLOW_ENABLED_FLAG = false
+
+local positionMode = "Above"  -- "Above", "Below", "Behind"
+local distanceAmount = 6      -- slider 1–12
+local REACQUIRE_EVERY = 0.35
+local reacquireCd = 0
+
+local function computeTargetPosAndLook(targetInst)
+	local tcf = getPivotCFrame(targetInst)
+	if not tcf then
+		return nil
+	end
+
+	local tPos = tcf.Position
+	local newPos
+
+	if positionMode == "Above" then
+		newPos = tPos + Vector3.new(0, distanceAmount, 0)
+	elseif positionMode == "Below" then
+		newPos = tPos + Vector3.new(0, -distanceAmount, 0)
+	else
+		local backDir = -safeUnitXZ(tcf.LookVector)
+		newPos = tPos + (backDir * distanceAmount)
+	end
+
+	local lookAt = tPos
+	return newPos, lookAt
+end
+
+---------------------------------------------------------------------
+-- Anti-fall / stabilizers
+---------------------------------------------------------------------
+
+local alignPos
+local alignOri
+local attHRP
+local attGoal
+local goalPart
+
+local function ensureStabilizers()
+	if not (hrp and humanoid) then
+		return
+	end
+	if alignPos and alignOri and goalPart and attGoal and attHRP then
+		return
+	end
+
+	goalPart = Instance.new("Part")
+	goalPart.Name = "CFrameGoal"
+	goalPart.Anchored = true
+	goalPart.CanCollide = false
+	goalPart.CanQuery = false
+	goalPart.CanTouch = false
+	goalPart.Transparency = 1
+	goalPart.Size = Vector3.new(1, 1, 1)
+	goalPart.Parent = workspace
+
+	attGoal = Instance.new("Attachment")
+	attGoal.Name = "GoalAttachment"
+	attGoal.Parent = goalPart
+
+	attHRP = hrp:FindFirstChild("StabilizeAttachment")
+	if not attHRP then
+		attHRP = Instance.new("Attachment")
+		attHRP.Name = "StabilizeAttachment"
+		attHRP.Parent = hrp
+	end
+
+	alignPos = Instance.new("AlignPosition")
+	alignPos.Name = "StabilizeAlignPosition"
+	alignPos.Attachment0 = attHRP
+	alignPos.Attachment1 = attGoal
+	alignPos.RigidityEnabled = false
+	alignPos.ReactionForceEnabled = true
+	alignPos.ApplyAtCenterOfMass = true
+	alignPos.MaxForce = 1e9
+	alignPos.MaxVelocity = math.huge
+	alignPos.Responsiveness = 200
+	alignPos.Parent = hrp
+
+	alignOri = Instance.new("AlignOrientation")
+	alignOri.Name = "StabilizeAlignOrientation"
+	alignOri.Attachment0 = attHRP
+	alignOri.Attachment1 = attGoal
+	alignOri.RigidityEnabled = false
+	alignOri.ReactionTorqueEnabled = true
+	alignOri.MaxTorque = 1e9
+	alignOri.Responsiveness = 200
+	alignOri.Parent = hrp
+end
+
+function removeStabilizers()
+	if goalPart then
+		goalPart:Destroy()
+		goalPart = nil
+	end
+	if alignPos then
+		alignPos:Destroy()
+		alignPos = nil
+	end
+	if alignOri then
+		alignOri:Destroy()
+		alignOri = nil
+	end
+	if attGoal then
+		attGoal:Destroy()
+		attGoal = nil
+	end
+end
+
+---------------------------------------------------------------------
+-- Noclip
+---------------------------------------------------------------------
+
+local noclipConn
+local savedCollide = {}
+
+local function captureAndSetNoclip(on)
+	if not character then
+		return
+	end
+	for _, d in ipairs(character:GetDescendants()) do
+		if d:IsA("BasePart") then
+			if on then
+				if savedCollide[d] == nil then
+					savedCollide[d] = d.CanCollide
+				end
+				d.CanCollide = false
+			else
+				if savedCollide[d] ~= nil then
+					d.CanCollide = savedCollide[d]
+				end
+			end
+		end
+	end
+	if not on then
+		savedCollide = {}
+	end
+end
+
+local function startNoclip()
+	if noclipConn then
+		noclipConn:Disconnect()
+	end
+	noclipConn = RunService.Stepped:Connect(function()
+		if enabled and character and humanoid and humanoid.Health > 0 then
+			captureAndSetNoclip(true)
+		end
+	end)
+end
+
+function stopNoclip()
+	if noclipConn then
+		noclipConn:Disconnect()
+		noclipConn = nil
+	end
+	captureAndSetNoclip(false)
+end
+
+---------------------------------------------------------------------
+-- Movement loop
+---------------------------------------------------------------------
+
+local moveConn
+local lastGoalCF
+
+local FARM_FLY_SPEED = 175
+local FARM_FLY_STOP_DISTANCE = 35
+
+local function stopMove()
+	if moveConn then
+		moveConn:Disconnect()
+		moveConn = nil
+	end
+	lastGoalCF = nil
+end
+
+local function startMove()
+	stopMove()
+	moveConn = RunService.RenderStepped:Connect(function(dt)
+		if not enabled or teleportFlyBusy then
+			return
+		end
+		if not (character and hrp and humanoid) then
+			return
+		end
+		if humanoid.Health <= 0 then
+			return
+		end
+		if next(selectedGroups) == nil then
+			return
+		end
+
+		if currentTarget and (not currentTarget.Parent or targetIsDead(currentTarget)) then
+			currentTarget = nil
+			reacquireCd = 0
+		end
+
+		reacquireCd = reacquireCd - dt
+		if reacquireCd <= 0 then
+			reacquireCd = REACQUIRE_EVERY
+			currentTarget = pickClosestAcrossSelections()
+		end
+
+		if not currentTarget or not currentTarget.Parent or targetIsDead(currentTarget) then
+			return
+		end
+
+		local pos, lookAt = computeTargetPosAndLook(currentTarget)
+		if not pos or not lookAt then
+			return
+		end
+
+		local offset = pos - hrp.Position
+		local distance = offset.Magnitude
+		local desiredCF = CFrame.new(pos, lookAt)
+
+		if distance <= FARM_FLY_STOP_DISTANCE then
+			lastGoalCF = desiredCF
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+			hrp.CFrame = desiredCF
+			if goalPart then
+				goalPart.CFrame = desiredCF
+			end
+			return
+		end
+
+		local direction = offset.Unit
+		local step = math.min(FARM_FLY_SPEED * dt, distance)
+		local nextPos = hrp.Position + direction * step
+		local nextCF = CFrame.new(nextPos, lookAt)
+
+		lastGoalCF = nextCF
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = nextCF
+
+		if goalPart then
+			goalPart.CFrame = nextCF
+		end
+	end)
+end
+
+---------------------------------------------------------------------
+-- Auto-equip weapon data (Backpack + Equipped, multi-selection)
+---------------------------------------------------------------------
+
+local weaponNames = {}
+local selectedWeaponNames = {} -- [toolName] = true/false
+
+local function rebuildWeaponNames()
+	weaponNames = {}
+	local seen = {}
+
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if backpack then
+		for _, item in ipairs(backpack:GetChildren()) do
+			if item:IsA("Tool") and not seen[item.Name] then
+				seen[item.Name] = true
+				table.insert(weaponNames, item.Name)
+			end
+		end
+	end
+
+	local char = LocalPlayer.Character
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") and not seen[item.Name] then
+				seen[item.Name] = true
+				table.insert(weaponNames, item.Name)
+			end
+		end
+	end
+
+	table.sort(weaponNames)
+end
+
+local function hasAnySelectedWeapon()
+	for _, on in pairs(selectedWeaponNames) do
+		if on then return true end
+	end
+	return false
+end
+
+---------------------------------------------------------------------
+-- Teleport helpers
+---------------------------------------------------------------------
+
+local teleportFlyConn
+local teleportFlyBusy = false
+local teleportFlyWasEnabled = false
+
+local TELEPORT_FLY_SPEED = 175
+local TELEPORT_FLY_STOP_DISTANCE = 35
+local TELEPORT_FLY_MIN_TIMEOUT = 8
+local TELEPORT_FLY_MAX_TIMEOUT = 35
+local TELEPORT_FLY_EXTRA_TIME = 2
+
+local function stopTeleportFly()
+	if teleportFlyConn then
+		teleportFlyConn:Disconnect()
+		teleportFlyConn = nil
+	end
+
+	local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+
+	captureAndSetNoclip(false)
+	teleportFlyBusy = false
+
+	if teleportFlyWasEnabled then
+		teleportFlyWasEnabled = false
+		enabled = true
+		_G.__CFOLLOW_ENABLED_FLAG = true
+		enableBtn.Text = "Enabled: ON"
+
+		if humanoid and prevAutoRotate == nil then
+			prevAutoRotate = humanoid.AutoRotate
+		end
+		if humanoid then
+			humanoid.AutoRotate = false
+		end
+
+		ensureStabilizers()
+		startMove()
+		startNoclip()
+		captureAndSetNoclip(true)
+
+		if goalPart and hrp then
+			goalPart.CFrame = hrp.CFrame
+		end
+	end
+end
+
+local function teleportToResolver(resolveTargetCF)
+	if typeof(resolveTargetCF) ~= "function" then
+		return
+	end
+
+	if teleportFlyBusy then
+		stopTeleportFly()
+	end
+
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not char or not root or not hum or hum.Health <= 0 then
+		return
+	end
+
+	local firstTargetCF = resolveTargetCF()
+	if not firstTargetCF then
+		return
+	end
+
+	teleportFlyWasEnabled = enabled
+	if enabled then
+		enabled = false
+		_G.__CFOLLOW_ENABLED_FLAG = false
+		enableBtn.Text = "Enabled: OFF"
+		stopMove()
+		stopNoclip()
+		removeStabilizers()
+		if humanoid and prevAutoRotate ~= nil then
+			humanoid.AutoRotate = prevAutoRotate
+		end
+	end
+
+	teleportFlyBusy = true
+	captureAndSetNoclip(true)
+
+	local firstDistance = (firstTargetCF.Position - root.Position).Magnitude
+	local adaptiveTimeout = math.clamp(
+		(firstDistance / math.max(TELEPORT_FLY_SPEED, 1)) + TELEPORT_FLY_EXTRA_TIME,
+		TELEPORT_FLY_MIN_TIMEOUT,
+		TELEPORT_FLY_MAX_TIMEOUT
+	)
+
+	local startTime = tick()
+
+	teleportFlyConn = RunService.PreSimulation:Connect(function(dt)
+		if not teleportFlyBusy then
+			stopTeleportFly()
+			return
+		end
+
+		char = LocalPlayer.Character
+		root = char and char:FindFirstChild("HumanoidRootPart")
+		hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not char or not root or not hum or hum.Health <= 0 then
+			stopTeleportFly()
+			return
+		end
+
+		local targetCF = resolveTargetCF()
+		if not targetCF then
+			stopTeleportFly()
+			return
+		end
+
+		local currentPos = root.Position
+		local targetPos = targetCF.Position
+		local offset = targetPos - currentPos
+		local distance = offset.Magnitude
+
+		if distance <= TELEPORT_FLY_STOP_DISTANCE then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			root.CFrame = targetCF
+			if goalPart then
+				goalPart.CFrame = targetCF
+			end
+			stopTeleportFly()
+			return
+		end
+
+		if (tick() - startTime) >= adaptiveTimeout then
+			stopTeleportFly()
+			return
+		end
+
+		local direction = offset.Unit
+		local step = math.min(TELEPORT_FLY_SPEED * dt, distance)
+		local nextPos = currentPos + direction * step
+		local nextCF = CFrame.new(nextPos, targetPos)
+
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		root.CFrame = nextCF
+
+		if goalPart then
+			goalPart.CFrame = nextCF
+		end
+	end)
+end
+
+local function teleportToCFrame(targetCF)
+	teleportToResolver(function()
+		return targetCF
+	end)
+end
+
+local function findQuestNPCByArg(argName)
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if inst.Name == argName and (inst:IsA("Model") or inst:IsA("BasePart")) then
+			return inst
+		end
+	end
+	return nil
+end
+
+---------------------------------------------------------------------
+-- UI root + tabs
+---------------------------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CFrameScannerUI"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 520, 0, 360)
+mainFrame.Position = UDim2.new(0, 30, 0, 140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = gui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 14)
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.35
+mainStroke.Color = Color3.fromRGB(140, 140, 170)
+mainStroke.Parent = mainFrame
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 44)
+topBar.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+topBar.BorderSizePixel = 0
+topBar.Parent = mainFrame
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 14)
+
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.Size = UDim2.new(1, -16, 1, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextColor3 = Color3.fromRGB(235, 235, 245)
+title.Text = "Main"
+title.Parent = topBar
+
+-- Drag window
+do
+	local dragging = false
+	local dragStart
+	local startPos
+
+	topBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = mainFrame.Position
+		end
+	end)
+
+	topBar.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+			mainFrame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+local function makeTabButton(text, pos)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0, 80, 0, 26)
+	b.Position = pos
+	b.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+	b.BorderSizePixel = 0
+	b.Text = text
+	b.TextColor3 = Color3.fromRGB(220, 220, 240)
+	b.Font = Enum.Font.GothamSemibold
+	b.TextSize = 13
+	b.Parent = topBar
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(160, 190, 255)
+	stroke.Transparency = 0.7
+	stroke.Parent = b
+
+	return b, stroke
+end
+
+-- 5 tabs: Main, Farming, Skills, Gems, Teleport
+local tabMainBtn,     tabMainStroke     = makeTabButton("Main",     UDim2.new(1, -400, 0.5, -13))
+local tabFarmBtn,     tabFarmStroke     = makeTabButton("Farming",  UDim2.new(1, -320, 0.5, -13))
+local tabSkillBtn,    tabSkillStroke    = makeTabButton("Skills",   UDim2.new(1, -240, 0.5, -13))
+local tabGemsBtn,     tabGemsStroke     = makeTabButton("Gems",     UDim2.new(1, -160, 0.5, -13))
+local tabTeleportBtn, tabTeleportStroke = makeTabButton("Teleport", UDim2.new(1,  -80, 0.5, -13))
+
+---------------------------------------------------------------------
+-- Main tab widgets
+---------------------------------------------------------------------
+
+local function makeBtn(text, pos, size)
+	local b = Instance.new("TextButton")
+	b.Size = size
+	b.Position = pos
+	b.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+	b.BorderSizePixel = 0
+	b.Text = text
+	b.TextColor3 = Color3.fromRGB(235, 235, 245)
+	b.Font = Enum.Font.GothamSemibold
+	b.TextSize = 14
+	b.Parent = mainFrame
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 10)
+	return b
+end
+
+local enableBtn = makeBtn("Enabled: OFF", UDim2.new(0, 12, 0, 56), UDim2.new(0, 160, 0, 34))
+local modeBtn   = makeBtn("Mode: Above",  UDim2.new(0, 184, 0, 56), UDim2.new(0, 150, 0, 34))
+local clearBtn  = makeBtn("Clear",        UDim2.new(0, 344, 0, 56), UDim2.new(0, 160, 0, 34))
+
+local selectedLabel = Instance.new("TextLabel")
+selectedLabel.BackgroundTransparency = 1
+selectedLabel.Position = UDim2.new(0, 12, 0, 96)
+selectedLabel.Size = UDim2.new(1, -24, 0, 20)
+selectedLabel.Font = Enum.Font.Gotham
+selectedLabel.TextSize = 13
+selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+selectedLabel.TextColor3 = Color3.fromRGB(200, 200, 215)
+selectedLabel.Text = "Selected: (none)"
+selectedLabel.Parent = mainFrame
+
+local sliderLabel = Instance.new("TextLabel")
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.Position = UDim2.new(0, 12, 0, 122)
+sliderLabel.Size = UDim2.new(1, -24, 0, 20)
+sliderLabel.Font = Enum.Font.Gotham
+sliderLabel.TextSize = 13
+sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+sliderLabel.TextColor3 = Color3.fromRGB(200, 200, 215)
+sliderLabel.Text = "Distance: 6"
+sliderLabel.Parent = mainFrame
+
+local sliderBG = Instance.new("Frame")
+sliderBG.Position = UDim2.new(0, 12, 0, 150)
+sliderBG.Size = UDim2.new(1, -24, 0, 10)
+sliderBG.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+sliderBG.BorderSizePixel = 0
+sliderBG.Parent = mainFrame
+Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(1, 0)
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(0, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(120, 170, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBG
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
+
+local ticks = Instance.new("Frame")
+ticks.BackgroundTransparency = 1
+ticks.Position = UDim2.new(0, 0, 1, 6)
+ticks.Size = UDim2.new(1, 0, 0, 10)
+ticks.Parent = sliderBG
+
+local MIN_DIST, MAX_DIST = 1, 12
+for i = MIN_DIST, MAX_DIST do
+	local a = (i - MIN_DIST) / (MAX_DIST - MIN_DIST)
+	local t = Instance.new("Frame")
+	t.AnchorPoint = Vector2.new(0.5, 0)
+	t.Position = UDim2.new(a, 0, 0, 0)
+	t.Size = UDim2.new(0, 1, 0, (i == MIN_DIST or i == MAX_DIST or i == 6) and 10 or 6)
+	t.BackgroundColor3 = Color3.fromRGB(140, 140, 170)
+	t.BackgroundTransparency = (i == MIN_DIST or i == MAX_DIST or i == 6) and 0.25 or 0.5
+	t.BorderSizePixel = 0
+	t.Parent = ticks
+end
+
+local minLabel = Instance.new("TextLabel")
+minLabel.BackgroundTransparency = 1
+minLabel.Position = UDim2.new(0, 0, 1, 18)
+minLabel.Size = UDim2.new(0, 40, 0, 16)
+minLabel.Font = Enum.Font.Gotham
+minLabel.TextSize = 12
+minLabel.TextColor3 = Color3.fromRGB(170, 170, 190)
+minLabel.TextXAlignment = Enum.TextXAlignment.Left
+minLabel.Text = tostring(MIN_DIST)
+minLabel.Parent = sliderBG
+
+local maxLabel = Instance.new("TextLabel")
+maxLabel.BackgroundTransparency = 1
+maxLabel.Position = UDim2.new(1, -40, 1, 18)
+maxLabel.Size = UDim2.new(0, 40, 0, 16)
+maxLabel.Font = Enum.Font.Gotham
+maxLabel.TextSize = 12
+maxLabel.TextColor3 = Color3.fromRGB(170, 170, 190)
+maxLabel.TextXAlignment = Enum.TextXAlignment.Right
+maxLabel.Text = tostring(MAX_DIST)
+maxLabel.Parent = sliderBG
+
+local sliderKnob = Instance.new("Frame")
+sliderKnob.Size = UDim2.new(0, 18, 0, 18)
+sliderKnob.Position = UDim2.new(0, -9, 0.5, -9)
+sliderKnob.BackgroundColor3 = Color3.fromRGB(235, 235, 245)
+sliderKnob.BorderSizePixel = 0
+sliderKnob.Parent = sliderBG
+Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
+
+local knobBubble = Instance.new("TextLabel")
+knobBubble.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+knobBubble.BorderSizePixel = 0
+knobBubble.Size = UDim2.new(0, 26, 0, 18)
+knobBubble.Position = UDim2.new(0.5, -13, 0, -24)
+knobBubble.Font = Enum.Font.GothamSemibold
+knobBubble.TextSize = 12
+knobBubble.TextColor3 = Color3.fromRGB(235, 235, 245)
+knobBubble.Text = tostring(distanceAmount)
+knobBubble.Parent = sliderKnob
+Instance.new("UICorner", knobBubble).CornerRadius = UDim.new(0, 8)
+
+local draggingSlider = false
+
+local function setDistanceFromAlpha(a)
+	a = math.clamp(a, 0, 1)
+	local val = math.floor(MIN_DIST + (MAX_DIST - MIN_DIST) * a + 0.5)
+	distanceAmount = val
+	sliderLabel.Text = "Distance: " .. tostring(distanceAmount)
+	knobBubble.Text = tostring(distanceAmount)
+
+	local px = a * sliderBG.AbsoluteSize.X
+	sliderFill:TweenSize(UDim2.new(0, px, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.08, true)
+	TweenService:Create(sliderKnob, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0, px - 9, 0.5, -9)
+	}):Play()
+end
+
+local function updateSliderFromMouse(x)
+	local left = sliderBG.AbsolutePosition.X
+	local w = sliderBG.AbsoluteSize.X
+	setDistanceFromAlpha((x - left) / w)
+end
+
+sliderBG.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = true
+		updateSliderFromMouse(input.Position.X)
+	end
+end)
+
+sliderBG.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+		updateSliderFromMouse(input.Position.X)
+	end
+end)
+
+local listFrame = Instance.new("ScrollingFrame")
+listFrame.Position = UDim2.new(0, 12, 0, 188)
+listFrame.Size = UDim2.new(1, -24, 1, -200)
+listFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+listFrame.BorderSizePixel = 0
+listFrame.ScrollBarThickness = 8
+listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+listFrame.Parent = mainFrame
+Instance.new("UICorner", listFrame).CornerRadius = UDim.new(0, 12)
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 6)
+layout.Parent = listFrame
+
+local function updateSelectedLabel()
+	local names = {}
+	for gName, on in pairs(selectedGroups) do
+		if on then
+			table.insert(names, gName)
+		end
+	end
+	table.sort(names, function(a, b)
+		return a:lower() < b:lower()
+	end)
+
+	if #names == 0 then
+		selectedLabel.Text = "Selected: (none)"
+	else
+		local shown = {}
+		for i = 1, math.min(4, #names) do
+			table.insert(shown, names[i])
+		end
+		local extra = #names - #shown
+		local txt = "Selected: " .. table.concat(shown, ", ")
+		if extra > 0 then
+			txt = txt .. " +" .. tostring(extra)
+		end
+		selectedLabel.Text = txt
+	end
+end
+
+local function clearList()
+	for _, c in ipairs(listFrame:GetChildren()) do
+		if c:IsA("Frame") or c:IsA("TextButton") then
+			c:Destroy()
+		end
+	end
+end
+
+local function tweenSelect(btn, stroke, selected)
+	local goalBg = selected and Color3.fromRGB(72, 95, 150) or Color3.fromRGB(40, 40, 52)
+	local goalTr = selected and 0.0 or 0.6
+	TweenService:Create(btn, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalBg
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+local function rebuildListUI()
+	clearList()
+	local y = 0
+
+	for _, gName in ipairs(groupOrder) do
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, -10, 0, 32)
+		row.BackgroundTransparency = 1
+		row.Parent = listFrame
+
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, 0, 1, 0)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.TextColor3 = Color3.fromRGB(235, 235, 245)
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 14
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.Parent = row
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 2
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.6
+		glow.Parent = btn
+
+		local count = (groups[gName] and #groups[gName]) or 0
+		btn.Text = ("  %s  (%d)"):format(gName, count)
+
+		local selected = selectedGroups[gName] == true
+		if selected then
+			btn.BackgroundColor3 = Color3.fromRGB(72, 95, 150)
+			glow.Transparency = 0.0
+		end
+
+		btn.MouseButton1Click:Connect(function()
+			selectedGroups[gName] = not selectedGroups[gName]
+			currentTarget = nil
+			tweenSelect(btn, glow, selectedGroups[gName] == true)
+			updateSelectedLabel()
+		end)
+
+		y = y + 38
+	end
+
+	listFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(y, listFrame.AbsoluteSize.Y))
+end
+
+-- Main tab buttons
+
+enableBtn.MouseButton1Click:Connect(function()
+	enabled = not enabled
+	_G.__CFOLLOW_ENABLED_FLAG = enabled
+	enableBtn.Text = enabled and "Enabled: ON" or "Enabled: OFF"
+
+	if humanoid and prevAutoRotate == nil then
+		prevAutoRotate = humanoid.AutoRotate
+	end
+
+	if enabled then
+		if humanoid then
+			humanoid.AutoRotate = false
+		end
+		ensureStabilizers()
+		startMove()
+		startNoclip()
+		captureAndSetNoclip(true)
+		if goalPart and hrp then
+			goalPart.CFrame = hrp.CFrame
+		end
+	else
+		stopMove()
+		stopNoclip()
+		removeStabilizers()
+		if humanoid and prevAutoRotate ~= nil then
+			humanoid.AutoRotate = prevAutoRotate
+		end
+	end
+end)
+
+modeBtn.MouseButton1Click:Connect(function()
+	if positionMode == "Above" then
+		positionMode = "Below"
+	elseif positionMode == "Below" then
+		positionMode = "Behind"
+	else
+		positionMode = "Above"
+	end
+	modeBtn.Text = "Mode: " .. positionMode
+end)
+
+clearBtn.MouseButton1Click:Connect(function()
+	selectedGroups = {}
+	currentTarget = nil
+	updateSelectedLabel()
+	rebuildGroups()
+	rebuildListUI()
+end)
+
+---------------------------------------------------------------------
+-- Farming tab (Attack + Quests + Auto Farm Level)
+---------------------------------------------------------------------
+
+local farmingFrame = Instance.new("Frame")
+farmingFrame.Position = UDim2.new(0, 12, 0, 56)
+farmingFrame.Size = UDim2.new(1, -24, 1, -68)
+farmingFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+farmingFrame.BorderSizePixel = 0
+farmingFrame.Visible = false
+farmingFrame.Parent = mainFrame
+Instance.new("UICorner", farmingFrame).CornerRadius = UDim.new(0, 12)
+
+local farmTitle = Instance.new("TextLabel")
+farmTitle.BackgroundTransparency = 1
+farmTitle.Position = UDim2.new(0, 12, 0, 10)
+farmTitle.Size = UDim2.new(1, -24, 0, 24)
+farmTitle.Font = Enum.Font.GothamBold
+farmTitle.TextSize = 16
+farmTitle.TextXAlignment = Enum.TextXAlignment.Left
+farmTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+farmTitle.Text = "Farming"
+farmTitle.Parent = farmingFrame
+
+local farmDesc = Instance.new("TextLabel")
+farmDesc.BackgroundTransparency = 1
+farmDesc.Position = UDim2.new(0, 12, 0, 36)
+farmDesc.Size = UDim2.new(1, -24, 0, 40)
+farmDesc.Font = Enum.Font.Gotham
+farmDesc.TextSize = 13
+farmDesc.TextXAlignment = Enum.TextXAlignment.Left
+farmDesc.TextYAlignment = Enum.TextYAlignment.Top
+farmDesc.TextWrapped = true
+farmDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+farmDesc.Text = "Toggle Attack = RequestHit spam. Auto Quest = quest spam. Auto Farm Level = auto pick quest + NPC by your level."
+farmDesc.Parent = farmingFrame
+
+-- Toggle Attack
+
+local attackToggle = Instance.new("TextButton")
+attackToggle.Size = UDim2.new(0, 220, 0, 36)
+attackToggle.Position = UDim2.new(0, 12, 0, 86)
+attackToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+attackToggle.BorderSizePixel = 0
+attackToggle.Font = Enum.Font.GothamSemibold
+attackToggle.TextSize = 14
+attackToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+attackToggle.Text = "Toggle Attack: OFF"
+attackToggle.Parent = farmingFrame
+Instance.new("UICorner", attackToggle).CornerRadius = UDim.new(0, 10)
+
+local attackStroke = Instance.new("UIStroke")
+attackStroke.Thickness = 2
+attackStroke.Color = Color3.fromRGB(160, 190, 255)
+attackStroke.Transparency = 0.6
+attackStroke.Parent = attackToggle
+
+local attackEnabled = false
+
+local function updateAttackButton()
+	local on = attackEnabled
+	attackToggle.Text = on and "Toggle Attack: ON" or "Toggle Attack: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(attackToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(attackStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+attackToggle.MouseButton1Click:Connect(function()
+	attackEnabled = not attackEnabled
+	updateAttackButton()
+end)
+
+task.spawn(function()
+	local args = {}
+	while true do
+		if attackEnabled then
+			pcall(function()
+				CombatRemote:FireServer(unpack(args))
+			end)
+			task.wait(0.01)
+		else
+			task.wait(0.05)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Quests & Auto Farm Level (Farming tab)
+---------------------------------------------------------------------
+
+local questTitle = Instance.new("TextLabel")
+questTitle.BackgroundTransparency = 1
+questTitle.Position = UDim2.new(0, 12, 0, 136)
+questTitle.Size = UDim2.new(1, -24, 0, 22)
+questTitle.Font = Enum.Font.GothamBold
+questTitle.TextSize = 14
+questTitle.TextXAlignment = Enum.TextXAlignment.Left
+questTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+questTitle.Text = "Quests"
+questTitle.Parent = farmingFrame
+
+local questSelectedLabel = Instance.new("TextLabel")
+questSelectedLabel.BackgroundTransparency = 1
+questSelectedLabel.Position = UDim2.new(0, 12, 0, 158)
+questSelectedLabel.Size = UDim2.new(1, -24, 0, 18)
+questSelectedLabel.Font = Enum.Font.Gotham
+questSelectedLabel.TextSize = 13
+questSelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+questSelectedLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+questSelectedLabel.Text = "Selected Quest: (none)"
+questSelectedLabel.Parent = farmingFrame
+
+local questList = Instance.new("ScrollingFrame")
+questList.Position = UDim2.new(0, 12, 0, 182)
+questList.Size = UDim2.new(0.6, -18, 1, -194)
+questList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+questList.BorderSizePixel = 0
+questList.ScrollBarThickness = 6
+questList.CanvasSize = UDim2.new(0, 0, 0, 0)
+questList.Parent = farmingFrame
+Instance.new("UICorner", questList).CornerRadius = UDim.new(0, 10)
+
+local questLayout = Instance.new("UIListLayout")
+questLayout.Padding = UDim.new(0, 6)
+questLayout.Parent = questList
+
+local selectedQuestIndex = nil
+local autoQuestEnabled = false
+local autoFarmEnabled = false
+
+local function updateQuestSelectedLabel()
+	if not selectedQuestIndex then
+		questSelectedLabel.Text = "Selected Quest: (none)"
+	else
+		local q = quests[selectedQuestIndex]
+		if q then
+			questSelectedLabel.Text = "Selected Quest: " .. q.DisplayName
+		else
+			questSelectedLabel.Text = "Selected Quest: (none)"
+		end
+	end
+end
+
+local function rebuildQuestList()
+	for _, c in ipairs(questList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for i, q in ipairs(quests) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  " .. q.DisplayName
+		btn.Parent = questList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.5
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.7
+		glow.Parent = btn
+
+		if selectedQuestIndex == i then
+			btn.BackgroundColor3 = Color3.fromRGB(70, 90, 130)
+			glow.Transparency = 0.2
+		end
+
+		btn.MouseButton1Click:Connect(function()
+			if selectedQuestIndex == i then
+				selectedQuestIndex = nil
+			else
+				selectedQuestIndex = i
+			end
+			updateQuestSelectedLabel()
+			rebuildQuestList()
+		end)
+
+		y = y + 32
+	end
+
+	questList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, questList.AbsoluteSize.Y))
+end
+
+local questAcceptBtn = Instance.new("TextButton")
+questAcceptBtn.Size = UDim2.new(0.35, -10, 0, 32)
+questAcceptBtn.Position = UDim2.new(0.63, 0, 0, 182)
+questAcceptBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
+questAcceptBtn.BorderSizePixel = 0
+questAcceptBtn.Font = Enum.Font.GothamSemibold
+questAcceptBtn.TextSize = 13
+questAcceptBtn.TextColor3 = Color3.fromRGB(235, 235, 245)
+questAcceptBtn.Text = "Accept Quest"
+questAcceptBtn.Parent = farmingFrame
+Instance.new("UICorner", questAcceptBtn).CornerRadius = UDim.new(0, 10)
+
+local questAcceptStroke = Instance.new("UIStroke")
+questAcceptStroke.Thickness = 1.5
+questAcceptStroke.Color = Color3.fromRGB(160, 190, 255)
+questAcceptStroke.Transparency = 0.4
+questAcceptStroke.Parent = questAcceptBtn
+
+questAcceptBtn.MouseButton1Click:Connect(function()
+	if not selectedQuestIndex then
+		return
+	end
+	local q = quests[selectedQuestIndex]
+	if not q then
+		return
+	end
+
+	local args = {
+		[1] = q.Arg,
+	}
+	pcall(function()
+		QuestRemote:FireServer(unpack(args))
+	end)
+end)
+
+-- Auto Quest toggle
+
+local autoQuestToggle = Instance.new("TextButton")
+autoQuestToggle.Size = UDim2.new(0.35, -10, 0, 32)
+autoQuestToggle.Position = UDim2.new(0.63, 0, 0, 222)
+autoQuestToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+autoQuestToggle.BorderSizePixel = 0
+autoQuestToggle.Font = Enum.Font.GothamSemibold
+autoQuestToggle.TextSize = 13
+autoQuestToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+autoQuestToggle.Text = "Auto Quest: OFF"
+autoQuestToggle.Parent = farmingFrame
+Instance.new("UICorner", autoQuestToggle).CornerRadius = UDim.new(0, 10)
+
+local autoQuestStroke = Instance.new("UIStroke")
+autoQuestStroke.Thickness = 1.5
+autoQuestStroke.Color = Color3.fromRGB(160, 190, 255)
+autoQuestStroke.Transparency = 0.6
+autoQuestStroke.Parent = autoQuestToggle
+
+local function updateAutoQuestButton()
+	local on = autoQuestEnabled
+	autoQuestToggle.Text = on and "Auto Quest: ON" or "Auto Quest: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(autoQuestToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(autoQuestStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+autoQuestToggle.MouseButton1Click:Connect(function()
+	autoQuestEnabled = not autoQuestEnabled
+	updateAutoQuestButton()
+end)
+
+task.spawn(function()
+	while true do
+		if autoQuestEnabled and selectedQuestIndex then
+			local q = quests[selectedQuestIndex]
+			if q then
+				local args = {
+					[1] = q.Arg,
+				}
+				pcall(function()
+					QuestRemote:FireServer(unpack(args))
+				end)
+			end
+			task.wait(0.5)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+-- Auto Farm Level toggle
+
+local autoFarmToggle = Instance.new("TextButton")
+autoFarmToggle.Size = UDim2.new(0.35, -10, 0, 32)
+autoFarmToggle.Position = UDim2.new(0.63, 0, 0, 262)
+autoFarmToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+autoFarmToggle.BorderSizePixel = 0
+autoFarmToggle.Font = Enum.Font.GothamSemibold
+autoFarmToggle.TextSize = 13
+autoFarmToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+autoFarmToggle.Text = "Auto Farm Level: OFF"
+autoFarmToggle.Parent = farmingFrame
+Instance.new("UICorner", autoFarmToggle).CornerRadius = UDim.new(0, 10)
+
+local autoFarmStroke = Instance.new("UIStroke")
+autoFarmStroke.Thickness = 1.5
+autoFarmStroke.Color = Color3.fromRGB(160, 190, 255)
+autoFarmStroke.Transparency = 0.6
+autoFarmStroke.Parent = autoFarmToggle
+
+local function updateAutoFarmButton()
+	local on = autoFarmEnabled
+	autoFarmToggle.Text = on and "Auto Farm Level: ON" or "Auto Farm Level: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(autoFarmToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(autoFarmStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+autoFarmToggle.MouseButton1Click:Connect(function()
+	autoFarmEnabled = not autoFarmEnabled
+	updateAutoFarmButton()
+
+	if autoFarmEnabled then
+		if not attackEnabled then
+			attackEnabled = true
+			updateAttackButton()
+		end
+		if not autoQuestEnabled then
+			autoQuestEnabled = true
+			updateAutoQuestButton()
+		end
+		if not enabled then
+			enabled = true
+			_G.__CFOLLOW_ENABLED_FLAG = true
+			enableBtn.Text = "Enabled: ON"
+			if humanoid and prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			if humanoid then
+				humanoid.AutoRotate = false
+			end
+			ensureStabilizers()
+			startMove()
+			startNoclip()
+			captureAndSetNoclip(true)
+			if goalPart and hrp then
+				goalPart.CFrame = hrp.CFrame
+			end
+		end
+	else
+		-- when turning OFF auto farm: turn EVERYTHING off
+		if attackEnabled then
+			attackEnabled = false
+			updateAttackButton()
+		end
+		if autoQuestEnabled then
+			autoQuestEnabled = false
+			updateAutoQuestButton()
+		end
+		if enabled then
+			enabled = false
+			_G.__CFOLLOW_ENABLED_FLAG = false
+			enableBtn.Text = "Enabled: OFF"
+			stopMove()
+			stopNoclip()
+			removeStabilizers()
+			if humanoid and prevAutoRotate ~= nil then
+				humanoid.AutoRotate = prevAutoRotate
+			end
+		end
+	end
+end)
+
+-- Helper: get the player's level from Data.Level
+local function getPlayerLevel()
+	local ok, level = pcall(function()
+		local dataFolder = LocalPlayer:FindFirstChild("Data") or LocalPlayer:WaitForChild("Data", 5)
+		if not dataFolder then return 0 end
+		local lv = dataFolder:FindFirstChild("Level")
+		if not lv then return 0 end
+		return tonumber(lv.Value) or 0
+	end)
+	if ok and level then
+		return level
+	end
+	return 0
+end
+
+-- Auto Farm Level loop
+task.spawn(function()
+	while true do
+		if autoFarmEnabled then
+			local level = getPlayerLevel()
+			if level >= 0 then
+				local chosen = nil
+
+				for _, entry in ipairs(autoLevelConfig) do
+					if level >= entry.minLevel and level <= entry.maxLevel then
+						chosen = entry
+						break
+					end
+				end
+
+				if chosen then
+					if selectedQuestIndex ~= chosen.questIndex then
+						selectedQuestIndex = chosen.questIndex
+						updateQuestSelectedLabel()
+						rebuildQuestList()
+					end
+
+					selectedGroups = {}
+					currentTarget = nil
+
+					local bestGroup = findBestGroupFromCandidates(chosen.npcGroupCandidates)
+					if bestGroup then
+						selectedGroups[bestGroup] = true
+					end
+
+					updateSelectedLabel()
+					rebuildListUI()
+				end
+			end
+			task.wait(1)
+		else
+			task.wait(0.2)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Skills tab (auto abilities Z/X/C/V + Auto Equip Weapons right side)
+---------------------------------------------------------------------
+
+local skillsFrame = Instance.new("Frame")
+skillsFrame.Position = UDim2.new(0, 12, 0, 56)
+skillsFrame.Size = UDim2.new(1, -24, 1, -68)
+skillsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+skillsFrame.BorderSizePixel = 0
+skillsFrame.Visible = false
+skillsFrame.Parent = mainFrame
+Instance.new("UICorner", skillsFrame).CornerRadius = UDim.new(0, 12)
+
+local skillTitle = Instance.new("TextLabel")
+skillTitle.BackgroundTransparency = 1
+skillTitle.Position = UDim2.new(0, 12, 0, 10)
+skillTitle.Size = UDim2.new(1, -24, 0, 24)
+skillTitle.Font = Enum.Font.GothamBold
+skillTitle.TextSize = 16
+skillTitle.TextXAlignment = Enum.TextXAlignment.Left
+skillTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+skillTitle.Text = "Auto Skills & Weapons"
+skillTitle.Parent = skillsFrame
+
+local skillDesc = Instance.new("TextLabel")
+skillDesc.BackgroundTransparency = 1
+skillDesc.Position = UDim2.new(0, 12, 0, 36)
+skillDesc.Size = UDim2.new(1, -24, 0, 40)
+skillDesc.Font = Enum.Font.Gotham
+skillDesc.TextSize = 13
+skillDesc.TextXAlignment = Enum.TextXAlignment.Left
+skillDesc.TextYAlignment = Enum.TextYAlignment.Top
+skillDesc.TextWrapped = true
+skillDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+skillDesc.Text = "Left: spam abilities (Z/X/C/V). Right: auto-equip selected weapons from your Backpack/Character."
+skillDesc.Parent = skillsFrame
+
+-- Left side skill toggles (Z/X/C/V)
+
+local function makeSkillToggle(labelText, keyName, posY)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 240, 0, 32)
+	btn.Position = UDim2.new(0, 12, 0, posY)
+	btn.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+	btn.BorderSizePixel = 0
+	btn.Font = Enum.Font.GothamSemibold
+	btn.TextSize = 13
+	btn.TextColor3 = Color3.fromRGB(235, 235, 245)
+	btn.Text = keyName .. " (" .. labelText .. "): OFF"
+	btn.Parent = skillsFrame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1.5
+	stroke.Color = Color3.fromRGB(160, 190, 255)
+	stroke.Transparency = 0.6
+	stroke.Parent = btn
+
+	return btn, stroke
+end
+
+local skillZEnabled = false
+local skillXEnabled = false
+local skillCEnabled = false
+local skillVEnabled = false
+
+local zBtn, zStroke = makeSkillToggle("Ability 1", "Z", 86)
+local xBtn, xStroke = makeSkillToggle("Ability 2", "X", 126)
+local cBtn, cStroke = makeSkillToggle("Ability 3", "C", 166)
+local vBtn, vStroke = makeSkillToggle("Ability 4", "V", 206)
+
+local function styleSkill(btn, stroke, on, labelText, keyName)
+	btn.Text = keyName .. " (" .. labelText .. "): " .. (on and "ON" or "OFF")
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+zBtn.MouseButton1Click:Connect(function()
+	skillZEnabled = not skillZEnabled
+	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
+end)
+
+xBtn.MouseButton1Click:Connect(function()
+	skillXEnabled = not skillXEnabled
+	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
+end)
+
+cBtn.MouseButton1Click:Connect(function()
+	skillCEnabled = not skillCEnabled
+	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
+end)
+
+vBtn.MouseButton1Click:Connect(function()
+	skillVEnabled = not skillVEnabled
+	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
+end)
+
+task.spawn(function()
+	while true do
+		if skillZEnabled or skillXEnabled or skillCEnabled or skillVEnabled then
+			if skillZEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(1)
+				end)
+			end
+			if skillXEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(2)
+				end)
+			end
+			if skillCEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(3)
+				end)
+			end
+			if skillVEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(4)
+				end)
+			end
+			task.wait(0.5)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- RIGHT SIDE: Auto Equip Weapons panel (Skills tab)
+---------------------------------------------------------------------
+
+local autoEquipEnabled = false
+
+local weaponPanel = Instance.new("Frame")
+weaponPanel.Position = UDim2.new(0.5, 8, 0, 86)
+weaponPanel.Size = UDim2.new(0.5, -20, 1, -96)
+weaponPanel.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+weaponPanel.BorderSizePixel = 0
+weaponPanel.Parent = skillsFrame
+Instance.new("UICorner", weaponPanel).CornerRadius = UDim.new(0, 10)
+
+local weaponTitleLabel = Instance.new("TextLabel")
+weaponTitleLabel.BackgroundTransparency = 1
+weaponTitleLabel.Position = UDim2.new(0, 10, 0, 6)
+weaponTitleLabel.Size = UDim2.new(1, -90, 0, 20)
+weaponTitleLabel.Font = Enum.Font.GothamBold
+weaponTitleLabel.TextSize = 14
+weaponTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+weaponTitleLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
+weaponTitleLabel.Text = "Auto Equip Weapons"
+weaponTitleLabel.Parent = weaponPanel
+
+local weaponRefreshBtn = Instance.new("TextButton")
+weaponRefreshBtn.Size = UDim2.new(0, 70, 0, 22)
+weaponRefreshBtn.Position = UDim2.new(1, -80, 0, 6)
+weaponRefreshBtn.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+weaponRefreshBtn.BorderSizePixel = 0
+weaponRefreshBtn.Font = Enum.Font.GothamSemibold
+weaponRefreshBtn.TextSize = 12
+weaponRefreshBtn.TextColor3 = Color3.fromRGB(235, 235, 245)
+weaponRefreshBtn.Text = "Refresh"
+weaponRefreshBtn.Parent = weaponPanel
+Instance.new("UICorner", weaponRefreshBtn).CornerRadius = UDim.new(0, 8)
+
+local weaponList = Instance.new("ScrollingFrame")
+weaponList.Position = UDim2.new(0, 8, 0, 32)
+weaponList.Size = UDim2.new(1, -16, 1, -72)
+weaponList.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+weaponList.BorderSizePixel = 0
+weaponList.ScrollBarThickness = 6
+weaponList.CanvasSize = UDim2.new(0, 0, 0, 0)
+weaponList.Parent = weaponPanel
+Instance.new("UICorner", weaponList).CornerRadius = UDim.new(0, 8)
+
+local weaponLayout = Instance.new("UIListLayout")
+weaponLayout.Padding = UDim.new(0, 4)
+weaponLayout.Parent = weaponList
+
+local weaponToggle = Instance.new("TextButton")
+weaponToggle.Size = UDim2.new(1, -16, 0, 26)
+weaponToggle.Position = UDim2.new(0, 8, 1, -30)
+weaponToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+weaponToggle.BorderSizePixel = 0
+weaponToggle.Font = Enum.Font.GothamSemibold
+weaponToggle.TextSize = 13
+weaponToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+weaponToggle.Text = "Auto Equip: OFF"
+weaponToggle.Parent = weaponPanel
+Instance.new("UICorner", weaponToggle).CornerRadius = UDim.new(0, 8)
+
+local weaponToggleStroke = Instance.new("UIStroke")
+weaponToggleStroke.Thickness = 1.5
+weaponToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+weaponToggleStroke.Transparency = 0.6
+weaponToggleStroke.Parent = weaponToggle
+
+local function updateAutoEquipToggleButton()
+	local on = autoEquipEnabled
+	weaponToggle.Text = on and "Auto Equip: ON" or "Auto Equip: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(weaponToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(weaponToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+local function rebuildWeaponListUI()
+	for _, c in ipairs(weaponList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for _, name in ipairs(weaponNames) do
+		local row = Instance.new("TextButton")
+		row.Size = UDim2.new(1, -4, 0, 24)
+		row.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		row.BorderSizePixel = 0
+		row.Font = Enum.Font.GothamSemibold
+		row.TextSize = 13
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextColor3 = Color3.fromRGB(235, 235, 245)
+		row.Text = "  " .. name
+		row.Parent = weaponList
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.4
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = selectedWeaponNames[name] and 0.2 or 0.7
+		glow.Parent = row
+
+		if selectedWeaponNames[name] then
+			row.BackgroundColor3 = Color3.fromRGB(72, 95, 150)
+		end
+
+		row.MouseButton1Click:Connect(function()
+			selectedWeaponNames[name] = not selectedWeaponNames[name]
+			local on = selectedWeaponNames[name]
+			TweenService:Create(row, TweenInfo.new(0.12), {
+				BackgroundColor3 = on and Color3.fromRGB(72, 95, 150) or Color3.fromRGB(40, 40, 52)
+			}):Play()
+			TweenService:Create(glow, TweenInfo.new(0.12), {
+				Transparency = on and 0.2 or 0.7
+			}):Play()
+		end)
+
+		y = y + 28
+	end
+
+	weaponList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, weaponList.AbsoluteSize.Y))
+end
+
+weaponRefreshBtn.MouseButton1Click:Connect(function()
+	rebuildWeaponNames()
+	rebuildWeaponListUI()
+end)
+
+weaponToggle.MouseButton1Click:Connect(function()
+	autoEquipEnabled = not autoEquipEnabled
+	updateAutoEquipToggleButton()
+end)
+
+-- Auto equip loop (multi selection, survives respawn)
+task.spawn(function()
+	while true do
+		if autoEquipEnabled and hasAnySelectedWeapon() then
+			local char = LocalPlayer.Character
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			local hum = nil
+
+			if char then
+				hum = char:FindFirstChildOfClass("Humanoid")
+			end
+
+			if backpack and char and hum then
+				local equipped = nil
+				for _, child in ipairs(char:GetChildren()) do
+					if child:IsA("Tool") and selectedWeaponNames[child.Name] then
+						equipped = child
+						break
+					end
+				end
+
+				if not equipped then
+					local toEquip = nil
+					for _, wName in ipairs(weaponNames) do
+						if selectedWeaponNames[wName] then
+							local tool = backpack:FindFirstChild(wName)
+							if tool and tool:IsA("Tool") then
+								toEquip = tool
+								break
+							end
+						end
+					end
+
+					if toEquip then
+						pcall(function()
+							hum:EquipTool(toEquip)
+						end)
+					end
+				end
+			end
+
+			task.wait(0.3)
+		else
+			task.wait(0.3)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Gems tab: multi-boss selection + hollow farm + Auto Haki toggle
+---------------------------------------------------------------------
+
+local gemsFrame = Instance.new("Frame")
+gemsFrame.Position = UDim2.new(0, 12, 0, 56)
+gemsFrame.Size = UDim2.new(1, -24, 1, -68)
+gemsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+gemsFrame.BorderSizePixel = 0
+gemsFrame.Visible = false
+gemsFrame.Parent = mainFrame
+Instance.new("UICorner", gemsFrame).CornerRadius = UDim.new(0, 12)
+
+local gemsTitle = Instance.new("TextLabel")
+gemsTitle.BackgroundTransparency = 1
+gemsTitle.Position = UDim2.new(0, 12, 0, 10)
+gemsTitle.Size = UDim2.new(1, -24, 0, 24)
+gemsTitle.Font = Enum.Font.GothamBold
+gemsTitle.TextSize = 16
+gemsTitle.TextXAlignment = Enum.TextXAlignment.Left
+gemsTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+gemsTitle.Text = "Gems Farm"
+gemsTitle.Parent = gemsFrame
+
+local gemsDesc = Instance.new("TextLabel")
+gemsDesc.BackgroundTransparency = 1
+gemsDesc.Position = UDim2.new(0, 12, 0, 36)
+gemsDesc.Size = UDim2.new(1, -24, 0, 40)
+gemsDesc.Font = Enum.Font.Gotham
+gemsDesc.TextSize = 13
+gemsDesc.TextXAlignment = Enum.TextXAlignment.Left
+gemsDesc.TextYAlignment = Enum.TextYAlignment.Top
+gemsDesc.TextWrapped = true
+gemsDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsDesc.Text = "Auto farm Hollows with quest. Select one or more bosses (Yuji/Gojo/Jinwoo/Sukuna/Aizen). When any selected boss spawns, it switches from Hollows to that boss until it's dead, then goes back to Hollows. Auto Haki is optional."
+gemsDesc.Parent = gemsFrame
+
+local gemsToggle = Instance.new("TextButton")
+gemsToggle.Size = UDim2.new(0, 220, 0, 32)
+gemsToggle.Position = UDim2.new(0, 12, 0, 82)
+gemsToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+gemsToggle.BorderSizePixel = 0
+gemsToggle.Font = Enum.Font.GothamSemibold
+gemsToggle.TextSize = 13
+gemsToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+gemsToggle.Text = "Auto Gems: OFF"
+gemsToggle.Parent = gemsFrame
+Instance.new("UICorner", gemsToggle).CornerRadius = UDim.new(0, 10)
+
+local gemsToggleStroke = Instance.new("UIStroke")
+gemsToggleStroke.Thickness = 1.5
+gemsToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+gemsToggleStroke.Transparency = 0.6
+gemsToggleStroke.Parent = gemsToggle
+
+local gemsStatusLabel = Instance.new("TextLabel")
+gemsStatusLabel.BackgroundTransparency = 1
+gemsStatusLabel.Position = UDim2.new(0, 12, 0, 118)
+gemsStatusLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsStatusLabel.Font = Enum.Font.Gotham
+gemsStatusLabel.TextSize = 13
+gemsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsStatusLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsStatusLabel.Text = "Status: Off"
+gemsStatusLabel.Parent = gemsFrame
+
+-- Auto Haki toggle (only used while Auto Gems is ON)
+local autoHakiEnabled = false
+
+local hakiToggle = Instance.new("TextButton")
+hakiToggle.Size = UDim2.new(0, 160, 0, 28)
+hakiToggle.Position = UDim2.new(0, 250, 0, 82)
+hakiToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+hakiToggle.BorderSizePixel = 0
+hakiToggle.Font = Enum.Font.GothamSemibold
+hakiToggle.TextSize = 13
+hakiToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+hakiToggle.Text = "Auto Haki: OFF"
+hakiToggle.Parent = gemsFrame
+Instance.new("UICorner", hakiToggle).CornerRadius = UDim.new(0, 10)
+
+local hakiToggleStroke = Instance.new("UIStroke")
+hakiToggleStroke.Thickness = 1.5
+hakiToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+hakiToggleStroke.Transparency = 0.6
+hakiToggleStroke.Parent = hakiToggle
+
+local function updateHakiToggleButton()
+	local on = autoHakiEnabled
+	hakiToggle.Text = on and "Auto Haki: ON" or "Auto Haki: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(hakiToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(hakiToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+hakiToggle.MouseButton1Click:Connect(function()
+	autoHakiEnabled = not autoHakiEnabled
+	updateHakiToggleButton()
+
+	-- if user turns Auto Haki ON while Auto Gems is already ON, force an immediate check
+	if autoHakiEnabled and autoGemsEnabled then
+		ensureHakiOn()
+	end
+end)
+
+local gemsBossLabel = Instance.new("TextLabel")
+gemsBossLabel.BackgroundTransparency = 1
+gemsBossLabel.Position = UDim2.new(0, 12, 0, 144)
+gemsBossLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsBossLabel.Font = Enum.Font.GothamBold
+gemsBossLabel.TextSize = 14
+gemsBossLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsBossLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
+gemsBossLabel.Text = "Boss priority (multi-select)"
+gemsBossLabel.Parent = gemsFrame
+
+local gemsBossSelectedLabel = Instance.new("TextLabel")
+gemsBossSelectedLabel.BackgroundTransparency = 1
+gemsBossSelectedLabel.Position = UDim2.new(0, 12, 0, 166)
+gemsBossSelectedLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsBossSelectedLabel.Font = Enum.Font.Gotham
+gemsBossSelectedLabel.TextSize = 13
+gemsBossSelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsBossSelectedLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsBossSelectedLabel.Text = "Selected Bosses: (none)"
+gemsBossSelectedLabel.Parent = gemsFrame
+
+local gemsBossList = Instance.new("ScrollingFrame")
+gemsBossList.Position = UDim2.new(0, 12, 0, 192)
+gemsBossList.Size = UDim2.new(0.6, -18, 1, -204)
+gemsBossList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+gemsBossList.BorderSizePixel = 0
+gemsBossList.ScrollBarThickness = 6
+gemsBossList.CanvasSize = UDim2.new(0, 0, 0, 0)
+gemsBossList.Parent = gemsFrame
+Instance.new("UICorner", gemsBossList).CornerRadius = UDim.new(0, 10)
+
+local gemsBossLayout = Instance.new("UIListLayout")
+gemsBossLayout.Padding = UDim.new(0, 4)
+gemsBossLayout.Parent = gemsBossList
+
+local autoGemsEnabled = false
+local selectedGemBoss = {}  -- [index] = true/false
+
+local function setGemsStatus(text)
+	gemsStatusLabel.Text = "Status: " .. text
+end
+
+local function updateGemsBossSelectedLabel()
+	local names = {}
+	for i, b in ipairs(gemBosses) do
+		if selectedGemBoss[i] then
+			table.insert(names, b.DisplayName)
+		end
+	end
+
+	if #names == 0 then
+		gemsBossSelectedLabel.Text = "Selected Bosses: (none)"
+	else
+		local shown = {}
+		for i = 1, math.min(3, #names) do
+			table.insert(shown, names[i])
+		end
+		local extra = #names - #shown
+		local txt = "Selected Bosses: " .. table.concat(shown, ", ")
+		if extra > 0 then
+			txt = txt .. " +" .. tostring(extra)
+		end
+		gemsBossSelectedLabel.Text = txt
+	end
+end
+
+local function rebuildGemsBossList()
+	for _, c in ipairs(gemsBossList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for i, b in ipairs(gemBosses) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  " .. b.DisplayName
+		btn.Parent = gemsBossList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.4
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.7
+		glow.Parent = btn
+
+		local selected = selectedGemBoss[i] == true
+		if selected then
+			btn.BackgroundColor3 = Color3.fromRGB(72, 95, 150)
+			glow.Transparency = 0.2
+		end
+
+		btn.MouseButton1Click:Connect(function()
+			selectedGemBoss[i] = not selectedGemBoss[i]
+			updateGemsBossSelectedLabel()
+			rebuildGemsBossList()
+		end)
+
+		y = y + 30
+	end
+
+	gemsBossList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, gemsBossList.AbsoluteSize.Y))
+end
+
+local function updateGemsToggleButton()
+	local on = autoGemsEnabled
+	gemsToggle.Text = on and "Auto Gems: ON" or "Auto Gems: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(gemsToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(gemsToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+gemsToggle.MouseButton1Click:Connect(function()
+	autoGemsEnabled = not autoGemsEnabled
+	updateGemsToggleButton()
+
+	if autoGemsEnabled then
+		-- Turn off other auto modes to avoid fighting
+		if autoFarmEnabled then
+			autoFarmEnabled = false
+			updateAutoFarmButton()
+		end
+		if autoQuestEnabled then
+			autoQuestEnabled = false
+			updateAutoQuestButton()
+		end
+
+		-- Make sure attack + follow are on for auto farm behavior
+		if not attackEnabled then
+			attackEnabled = true
+			updateAttackButton()
+		end
+		if not enabled then
+			enabled = true
+			_G.__CFOLLOW_ENABLED_FLAG = true
+			enableBtn.Text = "Enabled: ON"
+			if humanoid and prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			if humanoid then
+				humanoid.AutoRotate = false
+			end
+			ensureStabilizers()
+			startMove()
+			startNoclip()
+			captureAndSetNoclip(true)
+			if goalPart and hrp then
+				goalPart.CFrame = hrp.CFrame
+			end
+		end
+
+		-- If auto Haki is already on, ensure Haki right away
+		if autoHakiEnabled then
+			ensureHakiOn()
+		end
+
+		setGemsStatus("Hollows (waiting for bosses)")
+	else
+		setGemsStatus("Off")
+
+		if attackEnabled then
+			attackEnabled = false
+			updateAttackButton()
+		end
+		if enabled then
+			enabled = false
+			_G.__CFOLLOW_ENABLED_FLAG = false
+			enableBtn.Text = "Enabled: OFF"
+			stopMove()
+			stopNoclip()
+			removeStabilizers()
+			if humanoid and prevAutoRotate ~= nil then
+				humanoid.AutoRotate = prevAutoRotate
+			end
+		end
+	end
+end)
+
+-- helper: find closest alive instance of any selected boss
+local function findAnySelectedBoss()
+	if not hrp then return nil, nil end
+	local myPos = hrp.Position
+	local bestInst, bestInfo, bestD = nil, nil, math.huge
+
+	for i, b in ipairs(gemBosses) do
+		if selectedGemBoss[i] then
+			for _, child in ipairs(FOLDER_PATH:GetChildren()) do
+				if baseName(child.Name) == b.GroupName and not targetIsDead(child) then
+					local cf = getPivotCFrame(child)
+					if cf then
+						local d = dist(myPos, cf.Position)
+						if d < bestD then
+							bestD = d
+							bestInst = child
+							bestInfo = b
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return bestInst, bestInfo
+end
+
+-- Gems loop: hollow quest + boss priority (multi-selection)
+task.spawn(function()
+	local hollowQuestIndex = 11 -- Hollows entry in quests table
+	local hollowCfg = autoLevelConfig[#autoLevelConfig]
+
+	while true do
+		if autoGemsEnabled then
+			local bossInst, bossInfo = findAnySelectedBoss()
+
+			if bossInst then
+				selectedGroups = {}
+				selectedGroups[baseName(bossInst.Name)] = true
+				currentTarget = bossInst
+				updateSelectedLabel()
+				rebuildListUI()
+
+				if bossInfo and bossInfo.DisplayName then
+					setGemsStatus("Boss: " .. bossInfo.DisplayName)
+				else
+					setGemsStatus("Boss: (unknown)")
+				end
+			else
+				-- Hollow mode + auto quest
+				selectedGroups = {}
+				if hollowCfg and hollowCfg.npcGroupCandidates then
+					for _, cand in ipairs(hollowCfg.npcGroupCandidates) do
+						if groups[cand] then
+							selectedGroups[cand] = true
+						end
+					end
+				end
+				currentTarget = nil
+				updateSelectedLabel()
+				rebuildListUI()
+
+				-- Set quest selection to Hollows for UI
+				if selectedQuestIndex ~= hollowQuestIndex then
+					selectedQuestIndex = hollowQuestIndex
+					updateQuestSelectedLabel()
+					rebuildQuestList()
+				end
+
+				local q = quests[hollowQuestIndex]
+				if q then
+					local args = {
+						[1] = q.Arg,
+					}
+					pcall(function()
+						QuestRemote:FireServer(unpack(args))
+					end)
+				end
+
+				setGemsStatus("Hollows (with quest)")
+			end
+
+			task.wait(0.5)
+		else
+			task.wait(0.2)
+		end
+	end
+end)
+
+-- GLOBAL AUTO HAKI LOOP:
+-- Now works ANY time Auto Haki is ON (not just during Auto Gems)
+task.spawn(function()
+	while true do
+		if autoHakiEnabled then
+			-- This will keep firing the toggle until Lightning Strike
+			-- actually appears on your right arm.
+			ensureHakiOn()
+		end
+		task.wait(0.5)
+	end
+end)
+
+
+---------------------------------------------------------------------
+-- Teleport tab: Quest NPC teleports + Player teleports
+---------------------------------------------------------------------
+
+local teleportFrame = Instance.new("Frame")
+teleportFrame.Position = UDim2.new(0, 12, 0, 56)
+teleportFrame.Size = UDim2.new(1, -24, 1, -68)
+teleportFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+teleportFrame.BorderSizePixel = 0
+teleportFrame.Visible = false
+teleportFrame.Parent = mainFrame
+Instance.new("UICorner", teleportFrame).CornerRadius = UDim.new(0, 12)
+
+local tpTitle = Instance.new("TextLabel")
+tpTitle.BackgroundTransparency = 1
+tpTitle.Position = UDim2.new(0, 12, 0, 10)
+tpTitle.Size = UDim2.new(1, -24, 0, 24)
+tpTitle.Font = Enum.Font.GothamBold
+tpTitle.TextSize = 16
+tpTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+tpTitle.Text = "Teleport"
+tpTitle.Parent = teleportFrame
+
+local tpDesc = Instance.new("TextLabel")
+tpDesc.BackgroundTransparency = 1
+tpDesc.Position = UDim2.new(0, 12, 0, 36)
+tpDesc.Size = UDim2.new(1, -24, 0, 40)
+tpDesc.Font = Enum.Font.Gotham
+tpDesc.TextSize = 13
+tpDesc.TextXAlignment = Enum.TextXAlignment.Left
+tpDesc.TextYAlignment = Enum.TextYAlignment.Top
+tpDesc.TextWrapped = true
+tpDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+tpDesc.Text = "Left: Teleport to Quest NPCs. Right: Teleport to other players."
+tpDesc.Parent = teleportFrame
+
+-- Quest NPC teleports (left side)
+
+local tpQuestTitle = Instance.new("TextLabel")
+tpQuestTitle.BackgroundTransparency = 1
+tpQuestTitle.Position = UDim2.new(0, 12, 0, 76)
+tpQuestTitle.Size = UDim2.new(0.5, -18, 0, 18)
+tpQuestTitle.Font = Enum.Font.GothamBold
+tpQuestTitle.TextSize = 14
+tpQuestTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpQuestTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+tpQuestTitle.Text = "Quest NPCs"
+tpQuestTitle.Parent = teleportFrame
+
+local tpQuestList = Instance.new("ScrollingFrame")
+tpQuestList.Position = UDim2.new(0, 12, 0, 98)
+tpQuestList.Size = UDim2.new(0.5, -18, 1, -110)
+tpQuestList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+tpQuestList.BorderSizePixel = 0
+tpQuestList.ScrollBarThickness = 6
+tpQuestList.CanvasSize = UDim2.new(0, 0, 0, 0)
+tpQuestList.Parent = teleportFrame
+Instance.new("UICorner", tpQuestList).CornerRadius = UDim.new(0, 10)
+
+local tpQuestLayout = Instance.new("UIListLayout")
+tpQuestLayout.Padding = UDim.new(0, 4)
+tpQuestLayout.Parent = tpQuestList
+
+local function rebuildTpQuestListUI()
+	for _, c in ipairs(tpQuestList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for _, q in ipairs(quests) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  TP: " .. q.DisplayName
+		btn.Parent = tpQuestList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.4
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.6
+		glow.Parent = btn
+
+		btn.MouseButton1Click:Connect(function()
+			local npc = findQuestNPCByArg(q.Arg)
+			if npc then
+				local cf = getPivotCFrame(npc)
+				if cf then
+					teleportToCFrame(cf * CFrame.new(0, 4, 0))
+				end
+			end
+		end)
+
+		y = y + 30
+	end
+
+	tpQuestList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, tpQuestList.AbsoluteSize.Y))
+end
+
+-- Player teleports (right side)
+
+local tpPlayerTitle = Instance.new("TextLabel")
+tpPlayerTitle.BackgroundTransparency = 1
+tpPlayerTitle.Position = UDim2.new(0.5, 6, 0, 76)
+tpPlayerTitle.Size = UDim2.new(0.5, -18, 0, 18)
+tpPlayerTitle.Font = Enum.Font.GothamBold
+tpPlayerTitle.TextSize = 14
+tpPlayerTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpPlayerTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+tpPlayerTitle.Text = "Players"
+tpPlayerTitle.Parent = teleportFrame
+
+local tpPlayerList = Instance.new("ScrollingFrame")
+tpPlayerList.Position = UDim2.new(0.5, 6, 0, 98)
+tpPlayerList.Size = UDim2.new(0.5, -18, 1, -110)
+tpPlayerList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+tpPlayerList.BorderSizePixel = 0
+tpPlayerList.ScrollBarThickness = 6
+tpPlayerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+tpPlayerList.Parent = teleportFrame
+Instance.new("UICorner", tpPlayerList).CornerRadius = UDim.new(0, 10)
+
+local tpPlayerLayout = Instance.new("UIListLayout")
+tpPlayerLayout.Padding = UDim.new(0, 4)
+tpPlayerLayout.Parent = tpPlayerList
+
+local function rebuildPlayerListUI()
+	for _, c in ipairs(tpPlayerList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, -6, 0, 26)
+			btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+			btn.BorderSizePixel = 0
+			btn.Font = Enum.Font.GothamSemibold
+			btn.TextSize = 13
+			btn.TextXAlignment = Enum.TextXAlignment.Left
+			btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+			btn.Text = "  TP to: " .. (plr.DisplayName or plr.Name)
+			btn.Parent = tpPlayerList
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+			local glow = Instance.new("UIStroke")
+			glow.Thickness = 1.4
+			glow.Color = Color3.fromRGB(160, 190, 255)
+			glow.Transparency = 0.6
+			glow.Parent = btn
+
+			btn.MouseButton1Click:Connect(function()
+				teleportToResolver(function()
+					local char = plr.Character
+					if not char then
+						return nil
+					end
+					local targetRoot = char:FindFirstChild("HumanoidRootPart")
+					if not targetRoot then
+						return nil
+					end
+					return targetRoot.CFrame * CFrame.new(0, 4, 0)
+				end)
+			end)
+
+			y = y + 30
+		end
+	end
+
+	tpPlayerList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, tpPlayerList.AbsoluteSize.Y))
+end
+
+Players.PlayerAdded:Connect(rebuildPlayerListUI)
+Players.PlayerRemoving:Connect(rebuildPlayerListUI)
+
+---------------------------------------------------------------------
+-- Tabs logic
+---------------------------------------------------------------------
+
+local currentTab = "Main"
+local mainWidgets = {
+	enableBtn,
+	modeBtn,
+	clearBtn,
+	selectedLabel,
+	sliderLabel,
+	sliderBG,
+	listFrame,
+}
+
+local function setTab(tab)
+	currentTab = tab
+	local isMain     = (tab == "Main")
+	local isFarming  = (tab == "Farming")
+	local isSkills   = (tab == "Skills")
+	local isGems     = (tab == "Gems")
+	local isTeleport = (tab == "Teleport")
+
+	for _, inst in ipairs(mainWidgets) do
+		inst.Visible = isMain
+	end
+	farmingFrame.Visible  = isFarming
+	skillsFrame.Visible   = isSkills
+	gemsFrame.Visible     = isGems
+	teleportFrame.Visible = isTeleport
+
+	title.Text = tab
+
+	local function styleTab(btn, stroke, active)
+		TweenService:Create(btn, TweenInfo.new(0.12), {
+			BackgroundColor3 = active and Color3.fromRGB(70, 80, 120) or Color3.fromRGB(40, 40, 52)
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.12), {
+			Transparency = active and 0.3 or 0.7
+		}):Play()
+	end
+
+	styleTab(tabMainBtn,     tabMainStroke,     isMain)
+	styleTab(tabFarmBtn,     tabFarmStroke,     isFarming)
+	styleTab(tabSkillBtn,    tabSkillStroke,    isSkills)
+	styleTab(tabGemsBtn,     tabGemsStroke,     isGems)
+	styleTab(tabTeleportBtn, tabTeleportStroke, isTeleport)
+end
+
+tabMainBtn.MouseButton1Click:Connect(function()
+	setTab("Main")
+end)
+
+tabFarmBtn.MouseButton1Click:Connect(function()
+	setTab("Farming")
+end)
+
+tabSkillBtn.MouseButton1Click:Connect(function()
+	setTab("Skills")
+end)
+
+tabGemsBtn.MouseButton1Click:Connect(function()
+	setTab("Gems")
+end)
+
+tabTeleportBtn.MouseButton1Click:Connect(function()
+	setTab("Teleport")
+end)
+
+---------------------------------------------------------------------
+-- Init
+---------------------------------------------------------------------
+
+task.defer(function()
+	rebuildGroups()
+	updateSelectedLabel()
+	rebuildListUI()
+	setDistanceFromAlpha((distanceAmount - MIN_DIST) / (MAX_DIST - MIN_DIST))
+
+	rebuildQuestList()
+	updateQuestSelectedLabel()
+	updateAutoQuestButton()
+	updateAutoFarmButton()
+
+	rebuildWeaponNames()
+	rebuildWeaponListUI()
+	updateAutoEquipToggleButton()
+
+	rebuildGemsBossList()
+	updateGemsBossSelectedLabel()
+	setGemsStatus("Off")
+	updateGemsToggleButton()
+	updateHakiToggleButton()
+
+	rebuildTpQuestListUI()
+	rebuildPlayerListUI()
+
+	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
+	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
+	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
+	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
+
+	setTab("Main")
+end)
+
+task.spawn(function()
+	while gui.Parent do
+		rebuildGroups()
+		rebuildListUI()
+		updateSelectedLabel()
+
+		rebuildWeaponNames()
+		rebuildWeaponListUI()
+
+		rebuildPlayerListUI()
+
+		task.wait(UI_REFRESH_INTERVAL)
+	end
+end)
+
+
+
+
+local guiVisible = true  -- track current state
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- don't trigger while typing in chat / menus
+	if gameProcessed then return end  
+
+	if input.KeyCode == Enum.KeyCode.L then
+		guiVisible = not guiVisible
+		gui.Enabled = guiVisible      -- hides/shows the whole GUI
+		-- if you only want to hide the window, use:
+		-- mainFrame.Visible = guiVisible
+	end
+end)
